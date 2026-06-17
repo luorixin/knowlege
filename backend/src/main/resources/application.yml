@@ -1,0 +1,82 @@
+server:
+  port: ${BACKEND_PORT:8080}
+
+spring:
+  application:
+    name: knowledge-backend
+  config:
+    import:
+      - optional:file:deploy/.env[.properties]
+      - optional:file:../deploy/.env[.properties]
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:${POSTGRES_URL:jdbc:postgresql://localhost:5432/knowledge}}
+    username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER:knowledge_app}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:}}
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: ${BACKEND_MAX_FILE_SIZE:100MB}
+      max-request-size: ${BACKEND_MAX_REQUEST_SIZE:100MB}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+knowledge:
+  storage:
+    type: ${KNOWLEDGE_STORAGE_TYPE:local}
+    local-root: ${KNOWLEDGE_STORAGE_LOCAL_ROOT:data/uploads}
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ROOT_USER:knowledge_minio}
+      secret-key: ${MINIO_ROOT_PASSWORD:}
+      bucket: ${MINIO_BUCKET:knowledge-documents}
+  chunking:
+    default-size: ${KNOWLEDGE_CHUNK_SIZE:800}
+    default-overlap: ${KNOWLEDGE_CHUNK_OVERLAP:100}
+  desensitization:
+    enabled: ${KNOWLEDGE_DESENSITIZATION_ENABLED:true}
+    phone:
+      enabled: ${KNOWLEDGE_DESENSITIZATION_PHONE_ENABLED:true}
+    email:
+      enabled: ${KNOWLEDGE_DESENSITIZATION_EMAIL_ENABLED:true}
+    id-card:
+      enabled: ${KNOWLEDGE_DESENSITIZATION_ID_CARD_ENABLED:true}
+    amount:
+      enabled: ${KNOWLEDGE_DESENSITIZATION_AMOUNT_ENABLED:true}
+    customer-contact:
+      enabled: ${KNOWLEDGE_DESENSITIZATION_CUSTOMER_CONTACT_ENABLED:true}
+    customer-name:
+      enabled: ${KNOWLEDGE_DESENSITIZATION_CUSTOMER_NAME_ENABLED:true}
+    customer-name-replacement: ${KNOWLEDGE_DESENSITIZATION_CUSTOMER_NAME_REPLACEMENT:某金融客户}
+    customer-names:
+      - 平安银行
+  metadata:
+    database: ${KNOWLEDGE_META_DB:postgresql}
+    postgresql-url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/knowledge}
+    mysql-url: ${MYSQL_URL:jdbc:mysql://localhost:3306/knowledge}
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+  search:
+    engine: ${SEARCH_ENGINE:opensearch}
+    endpoint: ${OPENSEARCH_ENDPOINT:http://localhost:9200}
+    index-prefix: ${SEARCH_INDEX_PREFIX:knowledge}
+  vector-store:
+    engine: ${VECTOR_STORE_ENGINE:milvus}
+    endpoint: ${MILVUS_ENDPOINT:http://localhost:19530}
+    collection-prefix: ${VECTOR_COLLECTION_PREFIX:knowledge}
+  ai-service:
+    endpoint: ${AI_SERVICE_ENDPOINT:http://localhost:8001}

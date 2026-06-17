@@ -1,0 +1,437 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #202734;
+  background: #f4f6f8;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e6eaf0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 64px;
+  padding: 0 18px;
+  border-bottom: 1px solid #e6eaf0;
+}
+
+.brand-mark {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  color: #ffffff;
+  background: #226f54;
+  border-radius: 6px;
+  place-items: center;
+  font-weight: 700;
+}
+
+.brand-text {
+  font-weight: 700;
+}
+
+.nav-menu {
+  border-right: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 74px;
+  padding: 0 28px;
+  background: #ffffff;
+  border-bottom: 1px solid #e6eaf0;
+}
+
+.user-area,
+.toolbar-actions,
+.form-actions,
+.question-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-name {
+  color: #526071;
+  font-size: 13px;
+}
+
+.app-header h1,
+.section-header h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.app-header p,
+.section-header p {
+  margin: 4px 0 0;
+  color: #65758b;
+  font-size: 13px;
+}
+
+.app-main {
+  padding: 24px 28px;
+}
+
+.page-section {
+  display: grid;
+  gap: 18px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chat-section {
+  max-width: 880px;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.space-select {
+  width: 240px;
+}
+
+.compact {
+  margin-bottom: 14px;
+}
+
+.tool-panel,
+.info-panel,
+.login-panel,
+.chat-filter-panel,
+.chat-dialog-panel,
+.chat-reference-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.tool-panel {
+  padding: 18px;
+}
+
+.tool-panel h3,
+.chat-filter-panel h2,
+.chat-dialog-header h2,
+.login-brand h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.tool-panel h3 {
+  margin-bottom: 16px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+}
+
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.metric-item {
+  display: grid;
+  gap: 6px;
+  min-height: 78px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.metric-item span {
+  color: #667085;
+  font-size: 13px;
+}
+
+.metric-item strong {
+  color: #1f2937;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.upload-page {
+  max-width: 980px;
+}
+
+.upload-form {
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background: #eef2f6;
+}
+
+.login-panel {
+  width: min(440px, 100%);
+  padding: 28px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.login-brand p {
+  margin: 4px 0 0;
+  color: #667085;
+}
+
+.login-submit {
+  width: 100%;
+}
+
+.chat-workspace {
+  display: grid;
+  grid-template-columns: 280px minmax(420px, 1fr) 320px;
+  gap: 16px;
+  min-height: calc(100vh - 122px);
+}
+
+.chat-filter-panel,
+.chat-reference-panel {
+  align-self: start;
+  padding: 16px;
+}
+
+.chat-dialog-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: calc(100vh - 122px);
+}
+
+.chat-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.chat-dialog-header p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.message-list {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 360px;
+  padding: 18px;
+  overflow: auto;
+}
+
+.message-item {
+  display: grid;
+  gap: 8px;
+  max-width: 88%;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.message-item--user {
+  justify-self: end;
+  background: #ecfdf3;
+  border-color: #b7dfc2;
+}
+
+.message-item--assistant {
+  justify-self: start;
+}
+
+.message-item--error {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.message-role {
+  color: #526071;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.message-content {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
+.message-citations {
+  border-top: 1px solid #e2e8f0;
+}
+
+.no-evidence {
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.question-box {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.question-actions {
+  justify-content: space-between;
+}
+
+.question-actions span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.citation-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.citation-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+}
+
+.citation-panel__list {
+  border-top: 0;
+}
+
+.citation-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.citation-title span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citation-meta {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.citation-meta div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.citation-meta dt {
+  color: #667085;
+}
+
+.citation-meta dd {
+  min-width: 0;
+  margin: 0;
+  word-break: break-word;
+}
+
+.eval-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1180px) {
+  .chat-workspace,
+  .detail-grid,
+  .eval-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-dialog-panel {
+    min-height: 640px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-sidebar {
+    display: none;
+  }
+
+  .app-header,
+  .section-header,
+  .toolbar-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-main {
+    padding: 16px;
+  }
+
+  .space-select,
+  .toolbar-actions .el-button,
+  .form-row {
+    width: 100%;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .message-item {
+    max-width: 100%;
+  }
+}

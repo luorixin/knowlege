@@ -1,0 +1,22 @@
+.DS_Store
+
+# Java
+backend/target/
+.m2/
+
+# Python
+ai-service/.venv*/
+ai-service/.pytest_cache/
+ai-service/**/*.pyc
+ai-service/**/__pycache__/
+ai-service/*.egg-info/
+ai-service/build/
+
+# Node
+web/node_modules/
+web/dist/
+
+# Local env
+.env
+*.local
+deploy/.env

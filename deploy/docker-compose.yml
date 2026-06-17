@@ -1,0 +1,223 @@
+name: knowledge-platform
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    container_name: knowledge-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-knowledge}
+      POSTGRES_USER: ${POSTGRES_USER:-knowledge_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.4}
+    container_name: knowledge-mysql
+    profiles: ["mysql"]
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-knowledge}
+      MYSQL_USER: ${MYSQL_USER:-knowledge_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me-local-mysql}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-local-mysql-root}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7.4-alpine}
+    container_name: knowledge-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - redis-data:/data
+
+  minio:
+    image: ${MINIO_IMAGE:-minio/minio:latest}
+    container_name: knowledge-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-knowledge_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-local-minio}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - minio-data:/data
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: knowledge-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      BACKEND_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-knowledge}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-knowledge_app}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KNOWLEDGE_STORAGE_TYPE: local
+      KNOWLEDGE_STORAGE_LOCAL_ROOT: /app/data/uploads
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-knowledge_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-local-minio}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-documents}
+      AI_SERVICE_ENDPOINT: http://ai-service:8001
+      OPENSEARCH_ENDPOINT: http://opensearch:9200
+      MILVUS_ENDPOINT: http://milvus:19530
+      SEARCH_ENGINE: ${SEARCH_ENGINE:-mock}
+      VECTOR_STORE_ENGINE: ${VECTOR_STORE_ENGINE:-mock}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - backend-uploads:/app/data/uploads
+
+  ai-service:
+    build:
+      context: ../ai-service
+      dockerfile: Dockerfile
+    container_name: knowledge-ai-service
+    env_file:
+      - ../ai-service/.env.example
+    environment:
+      AI_SERVICE_HOST: 0.0.0.0
+      AI_SERVICE_PORT: 8001
+    ports:
+      - "${AI_SERVICE_PORT:-8001}:8001"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/v1/health', timeout=3)\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: knowledge-web
+    environment:
+      VITE_API_BASE_URL: ""
+      VITE_DEV_PROXY_TARGET: http://backend:8080
+    depends_on:
+      - backend
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - ../web/src:/app/src
+      - ../web/index.html:/app/index.html
+      - ../web/vite.config.ts:/app/vite.config.ts
+
+  opensearch:
+    image: ${OPENSEARCH_IMAGE:-opensearchproject/opensearch:2.19.3}
+    container_name: knowledge-opensearch
+    profiles: ["search"]
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD:-change-me-OpenSearch-Admin-123!}
+      plugins.security.disabled: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "${OPENSEARCH_PORT:-9200}:9200"
+      - "${OPENSEARCH_PERFORMANCE_PORT:-9600}:9600"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+  etcd:
+    image: ${ETCD_IMAGE:-quay.io/coreos/etcd:v3.5.18}
+    container_name: knowledge-etcd
+    profiles: ["vector"]
+    command: >
+      etcd
+      -advertise-client-urls=http://127.0.0.1:2379
+      -listen-client-urls=http://0.0.0.0:2379
+      --data-dir=/etcd
+    volumes:
+      - etcd-data:/etcd
+
+  milvus-minio:
+    image: ${MILVUS_MINIO_IMAGE:-minio/minio:latest}
+    container_name: knowledge-milvus-minio
+    profiles: ["vector"]
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MILVUS_MINIO_ACCESS_KEY:-milvus_minio}
+      MINIO_ROOT_PASSWORD: ${MILVUS_MINIO_SECRET_KEY:-change-me-local-milvus-minio}
+    volumes:
+      - milvus-minio-data:/data
+
+  milvus:
+    image: ${MILVUS_IMAGE:-milvusdb/milvus:v2.6.6}
+    container_name: knowledge-milvus
+    profiles: ["vector"]
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+      MINIO_ACCESS_KEY: ${MILVUS_MINIO_ACCESS_KEY:-milvus_minio}
+      MINIO_SECRET_KEY: ${MILVUS_MINIO_SECRET_KEY:-change-me-local-milvus-minio}
+    depends_on:
+      - etcd
+      - milvus-minio
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+      - "${MILVUS_HEALTH_PORT:-9091}:9091"
+    volumes:
+      - milvus-data:/var/lib/milvus
+
+volumes:
+  postgres-data:
+  mysql-data:
+  redis-data:
+  minio-data:
+  backend-uploads:
+  opensearch-data:
+  etcd-data:
+  milvus-minio-data:
+  milvus-data:

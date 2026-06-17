@@ -1,0 +1,205 @@
+package com.sunxin.knowledge.document.application;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sunxin.knowledge.auth.AccessControlService;
+import com.sunxin.knowledge.auth.CurrentUser;
+import com.sunxin.knowledge.auth.PermissionAction;
+import com.sunxin.knowledge.common.error.BadRequestException;
+import com.sunxin.knowledge.common.error.NotFoundException;
+import com.sunxin.knowledge.common.id.IdGenerator;
+import com.sunxin.knowledge.document.chunking.ChunkDraft;
+import com.sunxin.knowledge.document.chunking.DocumentChunker;
+import com.sunxin.knowledge.document.dto.ChunkResponse;
+import com.sunxin.knowledge.document.dto.RebuildChunksRequest;
+import com.sunxin.knowledge.document.dto.RebuildChunksResponse;
+import com.sunxin.knowledge.persistence.entity.KbDocument;
+import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
+import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
+import com.sunxin.knowledge.persistence.entity.KbDocumentVersion;
+import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
+import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository;
+import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
+import com.sunxin.knowledge.persistence.repository.KbDocumentVersionRepository;
+
+@Service
+public class DocumentChunkingService {
+
+    private static final String ACTIVE = "ACTIVE";
+    private static final String DELETED = "DELETED";
+    private static final String COMPLETED = "COMPLETED";
+
+    private final KbDocumentRepository documentRepository;
+    private final KbDocumentVersionRepository versionRepository;
+    private final KbDocumentChunkRepository chunkRepository;
+    private final KbDocumentParseTaskRepository parseTaskRepository;
+    private final DocumentChunker documentChunker;
+    private final DocumentDesensitizationService desensitizationService;
+    private final ObjectMapper objectMapper;
+    private final IdGenerator idGenerator;
+    private final AccessControlService accessControlService;
+
+    public DocumentChunkingService(
+            KbDocumentRepository documentRepository,
+            KbDocumentVersionRepository versionRepository,
+            KbDocumentChunkRepository chunkRepository,
+            KbDocumentParseTaskRepository parseTaskRepository,
+            DocumentChunker documentChunker,
+            DocumentDesensitizationService desensitizationService,
+            ObjectMapper objectMapper,
+            IdGenerator idGenerator,
+            AccessControlService accessControlService
+    ) {
+        this.documentRepository = documentRepository;
+        this.versionRepository = versionRepository;
+        this.chunkRepository = chunkRepository;
+        this.parseTaskRepository = parseTaskRepository;
+        this.documentChunker = documentChunker;
+        this.desensitizationService = desensitizationService;
+        this.objectMapper = objectMapper;
+        this.idGenerator = idGenerator;
+        this.accessControlService = accessControlService;
+    }
+
+    @Transactional
+    public RebuildChunksResponse rebuildChunks(
+            Long documentId,
+            RebuildChunksRequest request,
+            CurrentUser currentUser
+    ) {
+        KbDocument document = requireActiveDocument(documentId);
+        accessControlService.requireDocumentPermission(document, currentUser, PermissionAction.DOCUMENT_UPLOAD);
+        KbDocumentVersion version = currentVersion(document);
+        RebuildChunksRequest desensitizedRequest = desensitizationService.desensitize(
+                document,
+                version,
+                request,
+                currentUser
+        );
+        List<ChunkDraft> drafts = documentChunker.chunk(document, desensitizedRequest);
+        if (drafts.isEmpty()) {
+            throw new BadRequestException("Parsed document content must produce at least one chunk");
+        }
+
+        chunkRepository.deleteByVersionId(version.getId());
+        chunkRepository.flush();
+
+        List<KbDocumentChunk> chunks = new ArrayList<>();
+        for (ChunkDraft draft : drafts) {
+            KbDocumentChunk chunk = new KbDocumentChunk();
+            chunk.setId(idGenerator.nextId());
+            chunk.setTenantId(document.getTenantId());
+            chunk.setSpaceId(document.getSpaceId());
+            chunk.setDocId(document.getId());
+            chunk.setVersionId(version.getId());
+            chunk.setChunkIndex(draft.chunkIndex());
+            chunk.setPageNo(draft.pageNo());
+            chunk.setSectionTitle(draft.sectionTitle());
+            chunk.setContent(draft.content());
+            chunk.setTokenCount(draft.content().length());
+            chunk.setContentHash(sha256(draft.content()));
+            chunk.setMetadataJson(toJson(draft));
+            chunk.setStatus(ACTIVE);
+            chunk.setCreatedBy(currentUser.userId());
+            chunk.setUpdatedBy(currentUser.userId());
+            chunks.add(chunk);
+        }
+
+        List<KbDocumentChunk> savedChunks = chunkRepository.saveAll(chunks);
+        int totalTokens = savedChunks.stream()
+                .mapToInt(KbDocumentChunk::getTokenCount)
+                .sum();
+
+        version.setChunkCount(savedChunks.size());
+        version.setTotalTokens(totalTokens);
+        version.setParseStatus(COMPLETED);
+        version.setUpdatedBy(currentUser.userId());
+        versionRepository.save(version);
+
+        markParseTaskCompleted(document, version, savedChunks.size(), totalTokens);
+
+        List<ChunkResponse> chunkResponses = new ArrayList<>();
+        for (int index = 0; index < savedChunks.size(); index++) {
+            chunkResponses.add(ChunkResponse.fromEntity(savedChunks.get(index), drafts.get(index).contentType()));
+        }
+        return new RebuildChunksResponse(
+                document.getId(),
+                version.getId(),
+                savedChunks.size(),
+                version.getParseStatus(),
+                chunkResponses
+        );
+    }
+
+    private void markParseTaskCompleted(
+            KbDocument document,
+            KbDocumentVersion version,
+            int chunkCount,
+            int totalTokens
+    ) {
+        KbDocumentParseTask task = parseTaskRepository.findFirstByDocIdAndVersionIdOrderByCreatedAtDesc(
+                document.getId(),
+                version.getId()
+        ).orElse(null);
+        if (task == null) {
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (task.getStartedAt() == null) {
+            task.setStartedAt(now);
+        }
+        task.setStatus(COMPLETED);
+        task.setProgressPercent(100);
+        task.setFinishedAt(now);
+        task.setErrorCode(null);
+        task.setErrorMessage(null);
+        task.setMetadataJson("""
+                {"chunk_count":%d,"total_tokens":%d}
+                """.formatted(chunkCount, totalTokens).strip());
+        parseTaskRepository.save(task);
+    }
+
+    private KbDocument requireActiveDocument(Long documentId) {
+        return documentRepository.findByIdAndStatusNot(documentId, DELETED)
+                .orElseThrow(() -> new NotFoundException("Document not found"));
+    }
+
+    private KbDocumentVersion currentVersion(KbDocument document) {
+        if (document.getCurrentVersionId() != null) {
+            return versionRepository.findById(document.getCurrentVersionId())
+                    .orElseThrow(() -> new NotFoundException("Document version not found"));
+        }
+        return versionRepository.findFirstByDocIdAndStatusOrderByVersionNoDesc(document.getId(), ACTIVE)
+                .orElseThrow(() -> new NotFoundException("Document version not found"));
+    }
+
+    private String toJson(ChunkDraft draft) {
+        try {
+            return objectMapper.writeValueAsString(draft.metadata());
+        } catch (JsonProcessingException ex) {
+            throw new BadRequestException("Chunk metadata cannot be serialized");
+        }
+    }
+
+    private static String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashed = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hashed);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", ex);
+        }
+    }
+}
