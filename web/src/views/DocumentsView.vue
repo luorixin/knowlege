@@ -114,7 +114,7 @@ import {
   listDocuments,
 } from '@/api/documents'
 import { apiErrorMessage } from '@/api/http'
-import type { DocumentDetail, DocumentListItem, DocumentParseStatus } from '@/api/types'
+import type { DocumentDetail, DocumentListItem, DocumentParseStatus, EntityId } from '@/api/types'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useUserStore } from '@/stores/user'
 
@@ -127,7 +127,7 @@ const route = useRoute()
 const userStore = useUserStore()
 const knowledgeStore = useKnowledgeStore()
 
-const currentSpaceId = ref<number | null>(knowledgeStore.selectedSpaceId)
+const currentSpaceId = ref<EntityId | null>(knowledgeStore.selectedSpaceId)
 const documents = ref<DocumentListItem[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -148,7 +148,7 @@ onMounted(async () => {
   if (currentSpaceId.value) {
     await loadDocuments()
   }
-  const docId = Number(route.query.docId)
+  const docId = typeof route.query.docId === 'string' ? route.query.docId : null
   if (docId) {
     await openDetail(docId)
   }
@@ -171,7 +171,7 @@ async function loadDocuments() {
   }
 }
 
-async function openDetail(documentId: number) {
+async function openDetail(documentId: EntityId) {
   detailVisible.value = true
   detailLoading.value = true
   detail.value = null
@@ -184,7 +184,7 @@ async function openDetail(documentId: number) {
   }
 }
 
-async function openParseStatus(documentId: number) {
+async function openParseStatus(documentId: EntityId) {
   statusVisible.value = true
   statusLoading.value = true
   parseStatus.value = null
@@ -197,7 +197,7 @@ async function openParseStatus(documentId: number) {
   }
 }
 
-async function removeDocument(documentId: number) {
+async function removeDocument(documentId: EntityId) {
   await ElMessageBox.confirm('删除后文档状态将不可用于检索。', '删除文档', {
     type: 'warning',
     confirmButtonText: '删除',

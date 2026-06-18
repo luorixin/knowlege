@@ -63,7 +63,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 
 import { getDocumentParseStatus, listDocuments } from '@/api/documents'
 import { apiErrorMessage } from '@/api/http'
-import type { DocumentParseStatus } from '@/api/types'
+import type { DocumentParseStatus, EntityId } from '@/api/types'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useUserStore } from '@/stores/user'
 
@@ -77,7 +77,7 @@ defineOptions({
 
 const userStore = useUserStore()
 const knowledgeStore = useKnowledgeStore()
-const spaceId = ref<number | null>(knowledgeStore.selectedSpaceId)
+const spaceId = ref<EntityId | null>(knowledgeStore.selectedSpaceId)
 const rows = ref<TaskRow[]>([])
 const loading = ref(false)
 const error = ref('')

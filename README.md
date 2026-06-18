@@ -484,6 +484,8 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d postgres redis minio backend ai-service web
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml --profile search up -d opensearch
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml --profile vector up -d etcd milvus-minio milvus
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build backend
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build ai-service
 ```
 
 ## 验证命令

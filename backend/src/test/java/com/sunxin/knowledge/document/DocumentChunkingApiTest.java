@@ -268,9 +268,9 @@ class DocumentChunkingApiTest {
                                 content.getBytes(StandardCharsets.UTF_8))))
                 .andExpect(status().isOk())
                 .andReturn();
-        Number documentId = JsonPath.read(upload.getResponse().getContentAsString(), "$.data.documentId");
-        Number versionId = JsonPath.read(upload.getResponse().getContentAsString(), "$.data.versionId");
-        return new UploadedDocument(documentId.longValue(), versionId.longValue());
+        Long documentId = readLong(upload, "$.data.documentId");
+        Long versionId = readLong(upload, "$.data.versionId");
+        return new UploadedDocument(documentId, versionId);
     }
 
     private Long createSpace() throws Exception {
@@ -284,8 +284,12 @@ class DocumentChunkingApiTest {
                                 """))
                 .andExpect(status().isOk())
                 .andReturn();
-        Number id = JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
-        return id.longValue();
+        return readLong(result, "$.data.id");
+    }
+
+    private static Long readLong(MvcResult result, String path) throws Exception {
+        String value = JsonPath.read(result.getResponse().getContentAsString(), path);
+        return Long.valueOf(value);
     }
 
     private List<KbDocumentChunk> chunksByIndex(Long versionId) {

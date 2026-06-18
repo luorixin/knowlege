@@ -1,10 +1,10 @@
 package com.sunxin.knowledge.retrieval.search;
 
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
@@ -14,6 +14,7 @@ import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 public class MockVectorChunkSearchClient implements VectorChunkSearchClient {
 
     private static final String ACTIVE = "ACTIVE";
+    private static final String DELETED = "DELETED";
 
     private final KbDocumentChunkRepository chunkRepository;
 
@@ -27,8 +28,8 @@ public class MockVectorChunkSearchClient implements VectorChunkSearchClient {
     }
 
     @Override
-    public List<ScoredChunk> search(String query, Collection<Long> allowedDocIds, int limit) {
-        if (allowedDocIds == null || allowedDocIds.isEmpty() || limit <= 0) {
+    public List<ScoredChunk> search(String query, ChunkSearchScope scope, int limit) {
+        if (scope == null || limit <= 0) {
             return List.of();
         }
 
@@ -37,7 +38,22 @@ public class MockVectorChunkSearchClient implements VectorChunkSearchClient {
             return List.of();
         }
 
-        return chunkRepository.findByDocIdInAndStatus(allowedDocIds, ACTIVE).stream()
+        return chunkRepository.findAccessibleChunksForMockVector(
+                        scope.tenantId(),
+                        scope.spaceId(),
+                        scope.userSubjectId(),
+                        scope.roleSubjects(),
+                        scope.spaceOwner(),
+                        scope.docType(),
+                        scope.industry(),
+                        scope.serviceLine(),
+                        scope.createdFrom(),
+                        ACTIVE,
+                        DELETED,
+                        ACTIVE,
+                        PageRequest.of(0, Math.max(limit * 20, 200))
+                )
+                .stream()
                 .map(chunk -> new ScoredChunk(chunk, vectorScore(querySignals, chunk)))
                 .filter(result -> result.score() > 0.0)
                 .sorted(Comparator.comparingDouble(ScoredChunk::score).reversed())

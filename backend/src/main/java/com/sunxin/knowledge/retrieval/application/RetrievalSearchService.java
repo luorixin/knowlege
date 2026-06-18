@@ -6,8 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,10 +17,12 @@ import com.sunxin.knowledge.common.error.NotFoundException;
 import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
 import com.sunxin.knowledge.persistence.entity.KbSpace;
+import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbSpaceRepository;
 import com.sunxin.knowledge.retrieval.dto.RetrievalSearchRequest;
 import com.sunxin.knowledge.retrieval.dto.RetrievalSearchResponse;
 import com.sunxin.knowledge.retrieval.dto.RetrievalSearchResult;
+import com.sunxin.knowledge.retrieval.search.ChunkSearchScope;
 import com.sunxin.knowledge.retrieval.search.KeywordChunkSearchClient;
 import com.sunxin.knowledge.retrieval.search.ScoredChunk;
 import com.sunxin.knowledge.retrieval.search.VectorChunkSearchClient;
@@ -36,6 +36,7 @@ public class RetrievalSearchService {
     private static final int MAX_TOP_K = 100;
 
     private final KbSpaceRepository spaceRepository;
+    private final KbDocumentRepository documentRepository;
     private final DocumentAccessFilter documentAccessFilter;
     private final KeywordChunkSearchClient keywordSearchClient;
     private final VectorChunkSearchClient vectorSearchClient;
@@ -43,12 +44,14 @@ public class RetrievalSearchService {
 
     public RetrievalSearchService(
             KbSpaceRepository spaceRepository,
+            KbDocumentRepository documentRepository,
             DocumentAccessFilter documentAccessFilter,
             KeywordChunkSearchClient keywordSearchClient,
             VectorChunkSearchClient vectorSearchClient,
             AuditLogRecorder auditLogRecorder
     ) {
         this.spaceRepository = spaceRepository;
+        this.documentRepository = documentRepository;
         this.documentAccessFilter = documentAccessFilter;
         this.keywordSearchClient = keywordSearchClient;
         this.vectorSearchClient = vectorSearchClient;
@@ -61,11 +64,9 @@ public class RetrievalSearchService {
                 .orElseThrow(() -> new NotFoundException("Knowledge space not found"));
         CurrentUser resolvedUser = resolveTenant(user, space);
 
-        List<KbDocument> allowedDocuments = documentAccessFilter.accessibleDocuments(
-                space,
-                resolvedUser,
-                request.filters()
-        );
+        ChunkSearchScope searchScope = documentAccessFilter.searchScope(space, resolvedUser, request.filters());
+        int topK = topK(request.topK());
+        int candidateLimit = Math.min(MAX_TOP_K * 2, Math.max(topK * 3, topK));
         auditLogRecorder.record(
                 resolvedUser,
                 space.getTenantId(),
@@ -73,24 +74,18 @@ public class RetrievalSearchService {
                 "SPACE",
                 space.getId(),
                 AuditLogRecorder.SUCCESS,
-                auditLogRecorder.detail("allowed_doc_count", allowedDocuments.size())
+                auditLogRecorder.detail("candidate_limit", candidateLimit)
         );
-        if (allowedDocuments.isEmpty()) {
+
+        List<ScoredChunk> keywordResults = keywordSearchClient.search(request.query(), searchScope, candidateLimit);
+        List<ScoredChunk> vectorResults = vectorSearchClient.search(request.query(), searchScope, candidateLimit);
+
+        List<RetrievalCandidate> candidates = merge(keywordResults, vectorResults);
+        if (candidates.isEmpty()) {
             return new RetrievalSearchResponse(List.of());
         }
 
-        Set<Long> allowedDocIds = allowedDocuments.stream()
-                .map(KbDocument::getId)
-                .collect(Collectors.toSet());
-        Map<Long, KbDocument> documentsById = allowedDocuments.stream()
-                .collect(Collectors.toMap(KbDocument::getId, Function.identity()));
-
-        int topK = topK(request.topK());
-        int candidateLimit = Math.min(MAX_TOP_K * 2, Math.max(topK * 3, topK));
-        List<ScoredChunk> keywordResults = keywordSearchClient.search(request.query(), allowedDocIds, candidateLimit);
-        List<ScoredChunk> vectorResults = vectorSearchClient.search(request.query(), allowedDocIds, candidateLimit);
-
-        List<RetrievalCandidate> candidates = merge(keywordResults, vectorResults);
+        Map<Long, KbDocument> documentsById = documentsById(candidates);
         List<RetrievalSearchResult> results = candidates.stream()
                 .sorted(Comparator
                         .comparingDouble(RetrievalCandidate::score).reversed()
@@ -101,6 +96,17 @@ public class RetrievalSearchService {
                 .filter(result -> result != null)
                 .toList();
         return new RetrievalSearchResponse(results);
+    }
+
+    private Map<Long, KbDocument> documentsById(List<RetrievalCandidate> candidates) {
+        List<Long> docIds = candidates.stream()
+                .map(candidate -> candidate.chunk().getDocId())
+                .distinct()
+                .toList();
+        Map<Long, KbDocument> documentsById = new LinkedHashMap<>();
+        documentRepository.findAllById(docIds)
+                .forEach(document -> documentsById.put(document.getId(), document));
+        return documentsById;
     }
 
     private static CurrentUser resolveTenant(CurrentUser user, KbSpace space) {

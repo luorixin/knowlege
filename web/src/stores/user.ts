@@ -5,6 +5,7 @@ const STORAGE_KEY = 'knowledge-user'
 export interface MockUser {
   userId: number
   tenantId: number
+  username?: string
   displayName: string
   role: string
 }

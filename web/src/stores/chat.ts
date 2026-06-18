@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 
 import { chatWithAgent } from '@/api/agent'
-import type { AgentCitation, SearchFilters } from '@/api/types'
+import type { AgentCitation, EntityId, SearchFilters } from '@/api/types'
 
 export interface ChatMessage {
   id: string
@@ -13,7 +13,7 @@ export interface ChatMessage {
 }
 
 interface ChatState {
-  sessionId: number | null
+  sessionId: EntityId | null
   messages: ChatMessage[]
   activeCitations: AgentCitation[]
   sending: boolean
@@ -27,7 +27,7 @@ export const useChatStore = defineStore('chat', {
     sending: false,
   }),
   actions: {
-    async send(spaceId: number, query: string, filters: SearchFilters) {
+    async send(spaceId: EntityId, query: string, filters: SearchFilters) {
       const question = query.trim()
       if (!question) return
 

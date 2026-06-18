@@ -1,18 +1,18 @@
 import { defineStore } from 'pinia'
 
 import { createKnowledgeSpace, listKnowledgeSpaces } from '@/api/knowledge'
-import type { CreateKnowledgeSpacePayload, KnowledgeSpace } from '@/api/types'
+import type { CreateKnowledgeSpacePayload, EntityId, KnowledgeSpace } from '@/api/types'
 
 interface KnowledgeState {
   spaces: KnowledgeSpace[]
-  selectedSpaceId: number | null
+  selectedSpaceId: EntityId | null
   loading: boolean
 }
 
 export const useKnowledgeStore = defineStore('knowledge', {
   state: (): KnowledgeState => ({
     spaces: [],
-    selectedSpaceId: Number(window.localStorage.getItem('knowledge-selected-space')) || null,
+    selectedSpaceId: window.localStorage.getItem('knowledge-selected-space') || null,
     loading: false,
   }),
   getters: {
@@ -23,8 +23,9 @@ export const useKnowledgeStore = defineStore('knowledge', {
       this.loading = true
       try {
         this.spaces = await listKnowledgeSpaces(tenantId)
-        if (!this.selectedSpaceId && this.spaces.length > 0) {
-          this.selectSpace(this.spaces[0].id)
+        const selectedExists = this.spaces.some((item) => item.id === this.selectedSpaceId)
+        if (!selectedExists) {
+          this.selectSpace(this.spaces[0]?.id || null)
         }
       } finally {
         this.loading = false
@@ -41,10 +42,10 @@ export const useKnowledgeStore = defineStore('knowledge', {
       this.selectSpace(space.id)
       return space
     },
-    selectSpace(spaceId: number | null) {
+    selectSpace(spaceId: EntityId | null) {
       this.selectedSpaceId = spaceId
       if (spaceId) {
-        window.localStorage.setItem('knowledge-selected-space', String(spaceId))
+        window.localStorage.setItem('knowledge-selected-space', spaceId)
       } else {
         window.localStorage.removeItem('knowledge-selected-space')
       }

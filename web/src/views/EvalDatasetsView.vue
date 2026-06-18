@@ -153,7 +153,7 @@ import {
   runEval,
 } from '@/api/eval'
 import { apiErrorMessage } from '@/api/http'
-import type { EvalDataset, EvalRunResult } from '@/api/types'
+import type { EntityId, EvalDataset, EvalRunResult } from '@/api/types'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useUserStore } from '@/stores/user'
 
@@ -170,7 +170,7 @@ const latestResult = ref<EvalRunResult | null>(null)
 const loadingSpaces = ref(false)
 const creatingDataset = ref(false)
 const creatingCase = ref(false)
-const runningDatasetId = ref<number | null>(null)
+const runningDatasetId = ref<EntityId | null>(null)
 
 const datasetForm = reactive({
   spaceId: knowledgeStore.selectedSpaceId,
@@ -179,7 +179,7 @@ const datasetForm = reactive({
 })
 
 const caseForm = reactive({
-  datasetId: null as number | null,
+  datasetId: null as EntityId | null,
   question: '',
   expectedAnswer: '',
   expectedDocIds: '',
@@ -261,7 +261,7 @@ async function createCase() {
   }
 }
 
-async function run(datasetId: number) {
+async function run(datasetId: EntityId) {
   runningDatasetId.value = datasetId
   try {
     latestResult.value = await runEval(datasetId, 20)
@@ -273,11 +273,11 @@ async function run(datasetId: number) {
   }
 }
 
-function parseIds(value: string): number[] {
+function parseIds(value: string): EntityId[] {
   return value
     .split(',')
-    .map((item) => Number(item.trim()))
-    .filter((item) => Number.isFinite(item) && item > 0)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
 }
 
 function percent(value: number): string {

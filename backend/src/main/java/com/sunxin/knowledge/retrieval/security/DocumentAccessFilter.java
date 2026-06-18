@@ -3,75 +3,73 @@ package com.sunxin.knowledge.retrieval.security;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import com.sunxin.knowledge.auth.AccessControlService;
 import com.sunxin.knowledge.auth.CurrentUser;
-import com.sunxin.knowledge.auth.PermissionAction;
-import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbSpace;
-import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.retrieval.dto.SearchFilters;
+import com.sunxin.knowledge.retrieval.search.ChunkSearchScope;
 
 @Service
 public class DocumentAccessFilter {
 
-    private static final String DELETED = "DELETED";
-
-    private final KbDocumentRepository documentRepository;
     private final AccessControlService accessControlService;
 
-    public DocumentAccessFilter(
-            KbDocumentRepository documentRepository,
-            AccessControlService accessControlService
-    ) {
-        this.documentRepository = documentRepository;
+    public DocumentAccessFilter(AccessControlService accessControlService) {
         this.accessControlService = accessControlService;
     }
 
-    public List<KbDocument> accessibleDocuments(KbSpace space, CurrentUser user, SearchFilters filters) {
+    public ChunkSearchScope searchScope(KbSpace space, CurrentUser user, SearchFilters filters) {
         CurrentUser resolvedUser = accessControlService.resolveForTenant(user, space.getTenantId());
-        return documentRepository
-                .findBySpaceIdAndStatusNotOrderByCreatedAtDesc(space.getId(), DELETED)
-                .stream()
-                .filter(document -> document.getTenantId().equals(space.getTenantId()))
-                .filter(document -> matchesMetadata(document, filters))
-                .filter(document -> accessControlService.canAccessDocument(
-                        space,
-                        document,
-                        resolvedUser,
-                        PermissionAction.DOCUMENT_READ
-                ))
-                .toList();
+        return new ChunkSearchScope(
+                space.getTenantId(),
+                space.getId(),
+                resolvedUser.userId(),
+                String.valueOf(resolvedUser.userId()),
+                roleSubjects(resolvedUser.roleCodes()),
+                isOwner(space, resolvedUser),
+                normalizeFilter(filters == null ? null : filters.docType()),
+                normalizeFilter(filters == null ? null : filters.industry()),
+                normalizeFilter(filters == null ? null : filters.serviceLine()),
+                createdFrom(filters == null ? null : filters.yearFrom())
+        );
     }
 
-    private static boolean matchesMetadata(KbDocument document, SearchFilters filters) {
-        if (filters == null) {
-            return true;
+    private static boolean isOwner(KbSpace space, CurrentUser user) {
+        return space.getOwnerUserId() != null && space.getOwnerUserId().equals(user.userId());
+    }
+
+    private static List<String> roleSubjects(Set<String> roleCodes) {
+        if (roleCodes == null || roleCodes.isEmpty()) {
+            return List.of("__no_role__");
         }
-        return equalsIgnoreCaseIfPresent(document.getDocType(), filters.docType())
-                && equalsIgnoreCaseIfPresent(document.getIndustry(), filters.industry())
-                && equalsIgnoreCaseIfPresent(document.getServiceLine(), filters.serviceLine())
-                && matchesYearFrom(document, filters.yearFrom());
+        return roleCodes.stream()
+                .map(DocumentAccessFilter::normalize)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toList());
     }
 
-    private static boolean matchesYearFrom(KbDocument document, Integer yearFrom) {
+    private static String normalizeFilter(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static LocalDateTime createdFrom(Integer yearFrom) {
         if (yearFrom == null) {
-            return true;
+            return null;
         }
-        if (document.getCreatedAt() == null) {
-            return true;
-        }
-        LocalDateTime start = LocalDateTime.of(yearFrom, Month.JANUARY, 1, 0, 0);
-        return !document.getCreatedAt().isBefore(start);
-    }
-
-    private static boolean equalsIgnoreCaseIfPresent(String actual, String expected) {
-        if (expected == null || expected.isBlank()) {
-            return true;
-        }
-        return actual != null && actual.equalsIgnoreCase(expected.trim());
+        return LocalDateTime.of(yearFrom, Month.JANUARY, 1, 0, 0);
     }
 
 }

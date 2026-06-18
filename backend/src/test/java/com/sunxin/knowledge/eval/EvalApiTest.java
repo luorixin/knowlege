@@ -210,17 +210,17 @@ class EvalApiTest {
                         .content("""
                                 {
                                   "tenant_id": %d,
-                                  "space_id": %d,
+                                  "space_id": "%d",
                                   "name": "RAG Eval",
                                   "description": "MVP evaluation set"
                                 }
-                                """.formatted(space.getTenantId(), space.getId())))
+                """.formatted(space.getTenantId(), space.getId())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.id").isString())
                 .andExpect(jsonPath("$.data.name").value("RAG Eval"))
                 .andReturn();
-        Number datasetId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
-        return datasetId.longValue();
+        String datasetId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+        return Long.valueOf(datasetId);
     }
 
     private void createEvalCase(
@@ -230,15 +230,15 @@ class EvalApiTest {
             Long expectedChunkId,
             boolean expectNoAnswer
     ) throws Exception {
-        String expectedDocIds = expectedDocId == null ? "[]" : "[" + expectedDocId + "]";
-        String expectedChunkIds = expectedChunkId == null ? "[]" : "[" + expectedChunkId + "]";
+        String expectedDocIds = expectedDocId == null ? "[]" : "[\"" + expectedDocId + "\"]";
+        String expectedChunkIds = expectedChunkId == null ? "[]" : "[\"" + expectedChunkId + "\"]";
         mockMvc.perform(post("/api/eval/case")
                         .header("X-User-Id", "42")
                         .header("X-Tenant-Id", "1001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "dataset_id": %d,
+                                  "dataset_id": "%d",
                                   "question": "%s",
                                   "expected_answer": "%s",
                                   "expected_doc_ids": %s,
@@ -255,10 +255,10 @@ class EvalApiTest {
                                 expectNoAnswer ? "未在当前知识库中找到可靠依据" : "项目背景、现状诊断、解决方案、实施路径、交付计划",
                                 expectedDocIds,
                                 expectedChunkIds,
-                                expectNoAnswer
+                expectNoAnswer
                         )))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").isNumber());
+                .andExpect(jsonPath("$.data.id").isString());
     }
 
     private KbSpace createSpace() {

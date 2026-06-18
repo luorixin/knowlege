@@ -80,6 +80,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { apiErrorMessage } from '@/api/http'
+import type { EntityId } from '@/api/types'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useUserStore } from '@/stores/user'
 
@@ -141,17 +142,17 @@ async function createSpace() {
   }
 }
 
-function openDetail(spaceId: number) {
+function openDetail(spaceId: EntityId) {
   knowledgeStore.selectSpace(spaceId)
   router.push(`/knowledge-bases/${spaceId}`)
 }
 
-function selectAndChat(spaceId: number) {
+function selectAndChat(spaceId: EntityId) {
   knowledgeStore.selectSpace(spaceId)
   router.push('/chat')
 }
 
-function selectAndUpload(spaceId: number) {
+function selectAndUpload(spaceId: EntityId) {
   knowledgeStore.selectSpace(spaceId)
   router.push('/documents/upload')
 }

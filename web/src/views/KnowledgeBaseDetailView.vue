@@ -73,7 +73,7 @@ import { useRouter } from 'vue-router'
 
 import { listDocuments } from '@/api/documents'
 import { apiErrorMessage } from '@/api/http'
-import type { DocumentListItem } from '@/api/types'
+import type { DocumentListItem, EntityId } from '@/api/types'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useUserStore } from '@/stores/user'
 
@@ -92,7 +92,7 @@ const documents = ref<DocumentListItem[]>([])
 const loading = ref(false)
 const error = ref('')
 
-const spaceId = computed(() => Number(props.id))
+const spaceId = computed<EntityId>(() => props.id)
 const space = computed(() => knowledgeStore.spaces.find((item) => item.id === spaceId.value) || null)
 const parsingCount = computed(() => documents.value.filter((item) => item.status !== 'ACTIVE').length)
 const activeCount = computed(() => documents.value.filter((item) => item.status === 'ACTIVE').length)

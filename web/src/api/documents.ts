@@ -4,10 +4,11 @@ import type {
   DocumentListItem,
   DocumentParseStatus,
   DocumentUploadResult,
+  EntityId,
 } from './types'
 
 export interface UploadDocumentPayload {
-  spaceId: number
+  spaceId: EntityId
   file: File
   title?: string
   industry?: string
@@ -15,19 +16,19 @@ export interface UploadDocumentPayload {
   confidentialLevel?: string
 }
 
-export async function listDocuments(spaceId: number): Promise<DocumentListItem[]> {
+export async function listDocuments(spaceId: EntityId): Promise<DocumentListItem[]> {
   return unwrapResponse(await http.get(`/api/v1/kb-spaces/${spaceId}/documents`))
 }
 
-export async function getDocument(documentId: number): Promise<DocumentDetail> {
+export async function getDocument(documentId: EntityId): Promise<DocumentDetail> {
   return unwrapResponse(await http.get(`/api/v1/documents/${documentId}`))
 }
 
-export async function deleteDocument(documentId: number): Promise<{ documentId: number; status: string }> {
+export async function deleteDocument(documentId: EntityId): Promise<{ documentId: EntityId; status: string }> {
   return unwrapResponse(await http.delete(`/api/v1/documents/${documentId}`))
 }
 
-export async function getDocumentParseStatus(documentId: number): Promise<DocumentParseStatus> {
+export async function getDocumentParseStatus(documentId: EntityId): Promise<DocumentParseStatus> {
   return unwrapResponse(await http.get(`/api/v1/documents/${documentId}/parse-status`))
 }
 

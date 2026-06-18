@@ -124,9 +124,9 @@ class RetrievalSearchApiTest {
                 .andExpect(jsonPath("$.data.results[0].source_uri").exists())
                 .andReturn();
 
-        List<Number> chunkIds = JsonPath.read(result.getResponse().getContentAsString(), "$.data.results[*].chunk_id");
+        List<String> chunkIds = JsonPath.read(result.getResponse().getContentAsString(), "$.data.results[*].chunk_id");
         assertThat(new HashSet<>(chunkIds)).hasSize(chunkIds.size());
-        assertThat(chunkIds).contains(keywordChunk.getId(), vectorChunk.getId());
+        assertThat(chunkIds).contains(keywordChunk.getId().toString(), vectorChunk.getId().toString());
     }
 
     @Test

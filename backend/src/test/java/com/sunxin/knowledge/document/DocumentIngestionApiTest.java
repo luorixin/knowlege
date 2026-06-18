@@ -71,7 +71,7 @@ class DocumentIngestionApiTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
-                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.id").isString())
                 .andExpect(jsonPath("$.data.name").value("Proposal Knowledge"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
 
@@ -93,15 +93,15 @@ class DocumentIngestionApiTest {
         );
 
         MvcResult result = mockMvc.perform(multipart("/api/v1/kb-spaces/{spaceId}/documents", spaceId)
-                        .file(file)
-                        .param("title", "Case Study")
-                        .param("industry", "Education")
-                        .param("serviceLine", "Consulting")
-                        .param("confidentialLevel", "INTERNAL"))
+                .file(file)
+                .param("title", "Case Study")
+                .param("industry", "Education")
+                .param("serviceLine", "Consulting")
+                .param("confidentialLevel", "INTERNAL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.documentId").isNumber())
-                .andExpect(jsonPath("$.data.versionId").isNumber())
-                .andExpect(jsonPath("$.data.parseTaskId").isNumber())
+                .andExpect(jsonPath("$.data.documentId").isString())
+                .andExpect(jsonPath("$.data.versionId").isString())
+                .andExpect(jsonPath("$.data.parseTaskId").isString())
                 .andExpect(jsonPath("$.data.docType").value("TXT"))
                 .andExpect(jsonPath("$.data.status").value("UPLOADED"))
                 .andExpect(jsonPath("$.data.parseStatus").value("PENDING"))
@@ -109,7 +109,7 @@ class DocumentIngestionApiTest {
                 .andExpect(jsonPath("$.data.sourceUri").value(org.hamcrest.Matchers.startsWith("local://")))
                 .andReturn();
 
-        Number documentId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.documentId");
+        Long documentId = readLong(result, "$.data.documentId");
 
         assertThat(documentRepository.count()).isEqualTo(1);
         assertThat(documentVersionRepository.count()).isEqualTo(1);
@@ -120,12 +120,12 @@ class DocumentIngestionApiTest {
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].title").value("Case Study"));
 
-        mockMvc.perform(get("/api/v1/documents/{documentId}", documentId.longValue()))
+        mockMvc.perform(get("/api/v1/documents/{documentId}", documentId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("Case Study"))
                 .andExpect(jsonPath("$.data.currentVersion.parseStatus").value("PENDING"));
 
-        mockMvc.perform(get("/api/v1/documents/{documentId}/parse-status", documentId.longValue()))
+        mockMvc.perform(get("/api/v1/documents/{documentId}/parse-status", documentId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.taskType").value("PARSE_DOCUMENT"));
@@ -177,9 +177,9 @@ class DocumentIngestionApiTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        Number documentId = JsonPath.read(upload.getResponse().getContentAsString(), "$.data.documentId");
+        Long documentId = readLong(upload, "$.data.documentId");
 
-        mockMvc.perform(delete("/api/v1/documents/{documentId}", documentId.longValue()))
+        mockMvc.perform(delete("/api/v1/documents/{documentId}", documentId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DELETED"));
 
@@ -200,7 +200,11 @@ class DocumentIngestionApiTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        Number id = JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
-        return id.longValue();
+        return readLong(result, "$.data.id");
+    }
+
+    private static Long readLong(MvcResult result, String path) throws Exception {
+        String value = JsonPath.read(result.getResponse().getContentAsString(), path);
+        return Long.valueOf(value);
     }
 }

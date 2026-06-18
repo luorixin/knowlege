@@ -112,16 +112,16 @@ class AgentChatApiTest {
                 .andExpect(jsonPath("$.data.answer").value(org.hamcrest.Matchers.containsString("项目背景")))
                 .andExpect(jsonPath("$.data.citations", hasSize(1)))
                 .andExpect(jsonPath("$.data.citations[0].citation_id").value(1))
-                .andExpect(jsonPath("$.data.citations[0].doc_id").value(document.getId()))
+                .andExpect(jsonPath("$.data.citations[0].doc_id").value(document.getId().toString()))
                 .andExpect(jsonPath("$.data.citations[0].doc_title").value(document.getTitle()))
                 .andExpect(jsonPath("$.data.citations[0].page_no").value(12))
                 .andExpect(jsonPath("$.data.citations[0].section_title").value("解决方案"))
                 .andReturn();
 
-        Number sessionId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.session_id");
+        Long sessionId = readLong(result, "$.data.session_id");
         List<KbQuerySession> sessions = querySessionRepository.findAll();
         assertThat(sessions).hasSize(1);
-        assertThat(sessions.get(0).getId()).isEqualTo(sessionId.longValue());
+        assertThat(sessions.get(0).getId()).isEqualTo(sessionId);
         assertThat(sessions.get(0).getUserId()).isEqualTo(42L);
         assertThat(sessions.get(0).getSpaceId()).isEqualTo(space.getId());
 
@@ -138,13 +138,18 @@ class AgentChatApiTest {
         List<KbAnswerCitation> citations = answerCitationRepository.findAll();
         assertThat(citations).hasSize(1);
         assertThat(citations.get(0).getMessageId()).isEqualTo(messages.get(1).getId());
-        assertThat(citations.get(0).getSessionId()).isEqualTo(sessionId.longValue());
+        assertThat(citations.get(0).getSessionId()).isEqualTo(sessionId);
         assertThat(citations.get(0).getDocId()).isEqualTo(document.getId());
         assertThat(citations.get(0).getVersionId()).isEqualTo(document.getCurrentVersionId());
         assertThat(citations.get(0).getChunkId()).isEqualTo(chunk.getId());
         assertThat(citations.get(0).getPageNo()).isEqualTo(12);
         assertThat(citations.get(0).getSectionTitle()).isEqualTo("解决方案");
         assertThat(citations.get(0).getRankNo()).isEqualTo(1);
+    }
+
+    private static Long readLong(MvcResult result, String path) throws Exception {
+        String value = JsonPath.read(result.getResponse().getContentAsString(), path);
+        return Long.valueOf(value);
     }
 
     @Test
