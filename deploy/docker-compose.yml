@@ -69,6 +69,33 @@ services:
     volumes:
       - minio-data:/data
 
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: knowledge-kafka
+    user: root
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9094,EXTERNAL://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - kafka-data:/tmp/kafka-logs
+
   backend:
     build:
       context: ../backend
@@ -89,16 +116,32 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-local-minio}
       MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-documents}
       AI_SERVICE_ENDPOINT: http://ai-service:8001
+      AI_SERVICE_PARSE_PATH: ${AI_SERVICE_PARSE_PATH:-/api/parse/document}
+      AI_SERVICE_EMBEDDING_PATH: ${AI_SERVICE_EMBEDDING_PATH:-/api/v1/embeddings}
+      AI_SERVICE_EMBEDDING_MODEL: ${AI_SERVICE_EMBEDDING_MODEL:-mock-embedding-v1}
+      AI_SERVICE_TIMEOUT: ${AI_SERVICE_TIMEOUT:-60s}
+      BACKEND_EMBEDDING_PROVIDER: ${BACKEND_EMBEDDING_PROVIDER:-ai-service}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-16}
+      PARSE_TASK_EXECUTOR_AUTO_RUN: ${PARSE_TASK_EXECUTOR_AUTO_RUN:-false}
+      PARSE_TASK_EXECUTOR_FIXED_DELAY: ${PARSE_TASK_EXECUTOR_FIXED_DELAY:-10s}
+      PARSE_TASK_WORKER_ID: ${PARSE_TASK_WORKER_ID:-backend-local}
       OPENSEARCH_ENDPOINT: http://opensearch:9200
       MILVUS_ENDPOINT: http://milvus:19530
+      MILVUS_TOKEN: ${MILVUS_TOKEN:-root:Milvus}
       SEARCH_ENGINE: ${SEARCH_ENGINE:-mock}
       VECTOR_STORE_ENGINE: ${VECTOR_STORE_ENGINE:-mock}
+      SEARCH_REQUEST_TIMEOUT: ${SEARCH_REQUEST_TIMEOUT:-10s}
+      VECTOR_STORE_REQUEST_TIMEOUT: ${VECTOR_STORE_REQUEST_TIMEOUT:-10s}
+      VECTOR_STORE_FAIL_FAST: ${VECTOR_STORE_FAIL_FAST:-false}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     ports:
       - "${BACKEND_PORT:-8080}:8080"
@@ -111,12 +154,14 @@ services:
       dockerfile: Dockerfile
     container_name: knowledge-ai-service
     env_file:
-      - ../ai-service/.env.example
+      - .env
     environment:
       AI_SERVICE_HOST: 0.0.0.0
       AI_SERVICE_PORT: 8001
     ports:
       - "${AI_SERVICE_PORT:-8001}:8001"
+    volumes:
+      - backend-uploads:/app/data/uploads:ro
     healthcheck:
       test:
         [
@@ -221,3 +266,4 @@ volumes:
   etcd-data:
   milvus-minio-data:
   milvus-data:
+  kafka-data:

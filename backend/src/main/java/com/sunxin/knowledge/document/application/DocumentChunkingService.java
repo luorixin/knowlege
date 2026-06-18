@@ -28,10 +28,12 @@ import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
 import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
 import com.sunxin.knowledge.persistence.entity.KbDocumentVersion;
+import com.sunxin.knowledge.persistence.entity.KbEmbeddingIndexTask;
 import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentVersionRepository;
+import com.sunxin.knowledge.persistence.repository.KbEmbeddingIndexTaskRepository;
 
 @Service
 public class DocumentChunkingService {
@@ -39,37 +41,44 @@ public class DocumentChunkingService {
     private static final String ACTIVE = "ACTIVE";
     private static final String DELETED = "DELETED";
     private static final String COMPLETED = "COMPLETED";
+    private static final String PENDING = "PENDING";
 
     private final KbDocumentRepository documentRepository;
     private final KbDocumentVersionRepository versionRepository;
     private final KbDocumentChunkRepository chunkRepository;
     private final KbDocumentParseTaskRepository parseTaskRepository;
+    private final KbEmbeddingIndexTaskRepository embeddingIndexTaskRepository;
     private final DocumentChunker documentChunker;
     private final DocumentDesensitizationService desensitizationService;
     private final ObjectMapper objectMapper;
     private final IdGenerator idGenerator;
     private final AccessControlService accessControlService;
+    private final com.sunxin.knowledge.task.TaskEventProducer taskEventProducer;
 
     public DocumentChunkingService(
             KbDocumentRepository documentRepository,
             KbDocumentVersionRepository versionRepository,
             KbDocumentChunkRepository chunkRepository,
             KbDocumentParseTaskRepository parseTaskRepository,
+            KbEmbeddingIndexTaskRepository embeddingIndexTaskRepository,
             DocumentChunker documentChunker,
             DocumentDesensitizationService desensitizationService,
             ObjectMapper objectMapper,
             IdGenerator idGenerator,
-            AccessControlService accessControlService
+            AccessControlService accessControlService,
+            com.sunxin.knowledge.task.TaskEventProducer taskEventProducer
     ) {
         this.documentRepository = documentRepository;
         this.versionRepository = versionRepository;
         this.chunkRepository = chunkRepository;
         this.parseTaskRepository = parseTaskRepository;
+        this.embeddingIndexTaskRepository = embeddingIndexTaskRepository;
         this.documentChunker = documentChunker;
         this.desensitizationService = desensitizationService;
         this.objectMapper = objectMapper;
         this.idGenerator = idGenerator;
         this.accessControlService = accessControlService;
+        this.taskEventProducer = taskEventProducer;
     }
 
     @Transactional
@@ -81,11 +90,31 @@ public class DocumentChunkingService {
         KbDocument document = requireActiveDocument(documentId);
         accessControlService.requireDocumentPermission(document, currentUser, PermissionAction.DOCUMENT_UPLOAD);
         KbDocumentVersion version = currentVersion(document);
+        return rebuildChunksInternal(document, version, request, currentUser.userId());
+    }
+
+    @Transactional
+    public RebuildChunksResponse rebuildChunksFromPipeline(
+            Long documentId,
+            RebuildChunksRequest request,
+            Long actorUserId
+    ) {
+        KbDocument document = requireActiveDocument(documentId);
+        KbDocumentVersion version = currentVersion(document);
+        return rebuildChunksInternal(document, version, request, actorUserId);
+    }
+
+    private RebuildChunksResponse rebuildChunksInternal(
+            KbDocument document,
+            KbDocumentVersion version,
+            RebuildChunksRequest request,
+            Long actorUserId
+    ) {
         RebuildChunksRequest desensitizedRequest = desensitizationService.desensitize(
                 document,
                 version,
                 request,
-                currentUser
+                new CurrentUser(actorUserId, document.getTenantId(), java.util.Set.of())
         );
         List<ChunkDraft> drafts = documentChunker.chunk(document, desensitizedRequest);
         if (drafts.isEmpty()) {
@@ -93,12 +122,28 @@ public class DocumentChunkingService {
         }
 
         chunkRepository.deleteByVersionId(version.getId());
+        embeddingIndexTaskRepository.deleteByVersionId(version.getId());
         chunkRepository.flush();
+        embeddingIndexTaskRepository.flush();
 
-        List<KbDocumentChunk> chunks = new ArrayList<>();
+        List<KbDocumentChunk> existingChunks = chunkRepository.findByDocId(document.getId());
+        java.util.Map<String, Long> hashToOldChunkId = existingChunks.stream()
+                .filter(c -> c.getContentHash() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        KbDocumentChunk::getContentHash,
+                        KbDocumentChunk::getId,
+                        (id1, id2) -> id1
+                ));
+
+        List<KbDocumentChunk> allChunks = new ArrayList<>();
+        List<KbDocumentChunk> newChunks = new ArrayList<>();
+
         for (ChunkDraft draft : drafts) {
+            String hash = sha256(draft.content());
+            Long reusedId = hashToOldChunkId.get(hash);
+
             KbDocumentChunk chunk = new KbDocumentChunk();
-            chunk.setId(idGenerator.nextId());
+            chunk.setId(reusedId != null ? reusedId : idGenerator.nextId());
             chunk.setTenantId(document.getTenantId());
             chunk.setSpaceId(document.getSpaceId());
             chunk.setDocId(document.getId());
@@ -108,15 +153,19 @@ public class DocumentChunkingService {
             chunk.setSectionTitle(draft.sectionTitle());
             chunk.setContent(draft.content());
             chunk.setTokenCount(draft.content().length());
-            chunk.setContentHash(sha256(draft.content()));
+            chunk.setContentHash(hash);
             chunk.setMetadataJson(toJson(draft));
             chunk.setStatus(ACTIVE);
-            chunk.setCreatedBy(currentUser.userId());
-            chunk.setUpdatedBy(currentUser.userId());
-            chunks.add(chunk);
+            chunk.setCreatedBy(actorUserId);
+            chunk.setUpdatedBy(actorUserId);
+            allChunks.add(chunk);
+
+            if (reusedId == null) {
+                newChunks.add(chunk);
+            }
         }
 
-        List<KbDocumentChunk> savedChunks = chunkRepository.saveAll(chunks);
+        List<KbDocumentChunk> savedChunks = chunkRepository.saveAll(allChunks);
         int totalTokens = savedChunks.stream()
                 .mapToInt(KbDocumentChunk::getTokenCount)
                 .sum();
@@ -124,10 +173,11 @@ public class DocumentChunkingService {
         version.setChunkCount(savedChunks.size());
         version.setTotalTokens(totalTokens);
         version.setParseStatus(COMPLETED);
-        version.setUpdatedBy(currentUser.userId());
+        version.setUpdatedBy(actorUserId);
         versionRepository.save(version);
 
         markParseTaskCompleted(document, version, savedChunks.size(), totalTokens);
+        createEmbeddingIndexTasks(document, version, newChunks, actorUserId);
 
         List<ChunkResponse> chunkResponses = new ArrayList<>();
         for (int index = 0; index < savedChunks.size(); index++) {
@@ -169,6 +219,41 @@ public class DocumentChunkingService {
                 {"chunk_count":%d,"total_tokens":%d}
                 """.formatted(chunkCount, totalTokens).strip());
         parseTaskRepository.save(task);
+    }
+
+    private void createEmbeddingIndexTasks(
+            KbDocument document,
+            KbDocumentVersion version,
+            List<KbDocumentChunk> chunks,
+            Long actorUserId
+    ) {
+        List<KbEmbeddingIndexTask> tasks = new ArrayList<>();
+        for (KbDocumentChunk chunk : chunks) {
+            KbEmbeddingIndexTask task = new KbEmbeddingIndexTask();
+            task.setId(idGenerator.nextId());
+            task.setTenantId(document.getTenantId());
+            task.setSpaceId(document.getSpaceId());
+            task.setDocId(document.getId());
+            task.setVersionId(version.getId());
+            task.setChunkId(chunk.getId());
+            task.setModelProvider("mock");
+            task.setModelName("mock-embedding");
+            task.setEmbeddingDimension(0);
+            task.setIndexName("knowledge_chunk_keyword");
+            task.setVectorCollection("knowledge_chunk_vector");
+            task.setStatus(PENDING);
+            task.setPriority(0);
+            task.setRetryCount(0);
+            task.setProgressPercent(0);
+            task.setCreatedBy(actorUserId);
+            task.setUpdatedBy(actorUserId);
+            tasks.add(task);
+        }
+        embeddingIndexTaskRepository.saveAll(tasks);
+
+        for (KbEmbeddingIndexTask task : tasks) {
+            taskEventProducer.sendEmbeddingTask(task.getId());
+        }
     }
 
     private KbDocument requireActiveDocument(Long documentId) {

@@ -14,7 +14,7 @@ http.interceptors.request.use((config) => {
   }
 
   try {
-    const user = JSON.parse(raw) as { userId?: number; tenantId?: number }
+    const user = JSON.parse(raw) as { userId?: string; tenantId?: string }
     if (user.userId) {
       config.headers.set('X-User-Id', String(user.userId))
     }

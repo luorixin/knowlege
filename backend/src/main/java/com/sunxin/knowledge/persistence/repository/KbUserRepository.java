@@ -9,4 +9,6 @@ import com.sunxin.knowledge.persistence.entity.KbUser;
 public interface KbUserRepository extends JpaRepository<KbUser, Long> {
 
     Optional<KbUser> findByTenantIdAndIdAndStatus(Long tenantId, Long id, String status);
+
+    Optional<KbUser> findByTenantIdAndUsername(Long tenantId, String username);
 }

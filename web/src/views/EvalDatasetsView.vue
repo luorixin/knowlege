@@ -70,23 +70,47 @@
     <section class="tool-panel">
       <div class="section-header compact">
         <div>
-          <h3>运行评估</h3>
-          <p>当前页面仅展示本次会话创建的数据集</p>
+          <h3>评估数据集列表</h3>
         </div>
       </div>
-      <el-table :data="datasets" border empty-text="暂无数据集">
-        <el-table-column prop="name" label="数据集" min-width="220" />
-        <el-table-column prop="space_id" label="Space ID" width="120" />
-        <el-table-column prop="status" label="状态" width="120" />
-        <el-table-column label="操作" width="180">
+      <div class="stitch-card-table">
+        <el-table
+          v-loading="loadingSpaces"
+          :data="datasets"
+          row-key="id"
+          empty-text="暂无数据集"
+        >
+          <el-table-column prop="name" label="数据集" min-width="220" />
+          <el-table-column prop="space_id" label="Space ID" width="120" />
+          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="操作" width="180">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="viewCases(row)">
+                查看 Cases
+              </el-button>
+              <el-button link type="success" :loading="runningDatasetId === row.id" @click="run(row.id)">
+                运行评估
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </section>
+
+    <!-- Cases Dialog -->
+    <el-dialog v-model="casesDialogVisible" :title="`${currentDataset?.name} - Cases 列表`" width="800px">
+      <div class="stitch-card-table">
+      <el-table :data="currentCases" v-loading="loadingCases" empty-text="暂无题目">
+        <el-table-column prop="question" label="问题" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="expected_answer" label="期望答案" min-width="200" show-overflow-tooltip />
+        <el-table-column label="期望拒答" width="100">
           <template #default="{ row }">
-            <el-button link type="primary" :loading="runningDatasetId === row.id" @click="run(row.id)">
-              运行评估
-            </el-button>
+            <el-tag :type="row.expect_no_answer ? 'warning' : 'info'">{{ row.expect_no_answer ? '是' : '否' }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
-    </section>
+      </div>
+    </el-dialog>
 
     <section v-if="latestResult" class="tool-panel">
       <div class="section-header compact">
@@ -117,7 +141,18 @@
           <strong>{{ latestResult.metrics.permission_violation_count }}</strong>
         </div>
       </div>
-      <el-table :data="latestResult.cases" border>
+      <div class="stitch-card-table">
+        <el-table :data="latestResult.cases" row-key="caseId">
+          <el-table-column type="expand">
+            <template #default="{ row }">
+              <div style="padding: 16px;">
+                <p><strong>实际回答：</strong>{{ row.actual_answer || '无' }}</p>
+                <p><strong>期望拒答：</strong>{{ row.expect_no_answer ? '是' : '否' }} | <strong>拒答准确：</strong>{{ row.no_answer_correct ? '是' : '否' }}</p>
+              <p><strong>召回的 Chunk IDs：</strong>{{ row.retrieved_chunk_ids?.join(', ') || '无' }}</p>
+              <p><strong>引用的 Doc IDs：</strong>{{ row.cited_doc_ids?.join(', ') || '无' }}</p>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="question" label="问题" min-width="260" show-overflow-tooltip />
         <el-table-column prop="recall_hit" label="召回命中" width="110">
           <template #default="{ row }">
@@ -127,7 +162,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="citation_accuracy" label="引用准确率" width="130">
-          <template #default="{ row }">{{ percent(row.citation_accuracy) }}</template>
+          <template #default="{ row }">
+            <el-tag :type="row.citation_accuracy === 1 ? 'success' : 'danger'" effect="plain">
+              {{ percent(row.citation_accuracy) }}
+            </el-tag>
+          </template>
         </el-table-column>
         <el-table-column prop="permission_violation" label="权限违规" width="120">
           <template #default="{ row }">
@@ -137,6 +176,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
     </section>
   </section>
 </template>
@@ -150,10 +190,12 @@ import { onMounted, reactive, ref } from 'vue'
 import {
   createEvalCase,
   createEvalDataset,
+  listEvalDatasets,
+  listEvalCases,
   runEval,
 } from '@/api/eval'
 import { apiErrorMessage } from '@/api/http'
-import type { EntityId, EvalDataset, EvalRunResult } from '@/api/types'
+import type { EntityId, EvalDataset, EvalCase, EvalRunResult } from '@/api/types'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useUserStore } from '@/stores/user'
 
@@ -171,6 +213,11 @@ const loadingSpaces = ref(false)
 const creatingDataset = ref(false)
 const creatingCase = ref(false)
 const runningDatasetId = ref<EntityId | null>(null)
+
+const casesDialogVisible = ref(false)
+const currentDataset = ref<EvalDataset | null>(null)
+const currentCases = ref<EvalCase[]>([])
+const loadingCases = ref(false)
 
 const datasetForm = reactive({
   spaceId: knowledgeStore.selectedSpaceId,
@@ -197,7 +244,18 @@ const caseRules: FormRules = {
   question: [{ required: true, message: '请输入评估问题', trigger: 'blur' }],
 }
 
-onMounted(loadSpaces)
+onMounted(async () => {
+  await loadSpaces()
+  await fetchDatasets()
+})
+
+async function fetchDatasets() {
+  try {
+    datasets.value = await listEvalDatasets()
+  } catch (err) {
+    ElMessage.error(apiErrorMessage(err))
+  }
+}
 
 async function loadSpaces() {
   if (!userStore.tenantId) return
@@ -228,6 +286,7 @@ async function createDataset() {
     datasetForm.name = ''
     datasetForm.description = ''
     ElMessage.success('评估数据集已创建')
+    await fetchDatasets()
   } catch (err) {
     ElMessage.error(apiErrorMessage(err))
   } finally {
@@ -270,6 +329,19 @@ async function run(datasetId: EntityId) {
     ElMessage.error(apiErrorMessage(err))
   } finally {
     runningDatasetId.value = null
+  }
+}
+
+async function viewCases(row: EvalDataset) {
+  currentDataset.value = row
+  casesDialogVisible.value = true
+  loadingCases.value = true
+  try {
+    currentCases.value = await listEvalCases(row.id)
+  } catch (err) {
+    ElMessage.error(apiErrorMessage(err))
+  } finally {
+    loadingCases.value = false
   }
 }
 

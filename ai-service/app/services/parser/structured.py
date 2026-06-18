@@ -131,19 +131,41 @@ class StructuredDocumentParser:
         with zipfile.ZipFile(file_path) as archive:
             xml_content = archive.read("word/document.xml")
         root = ElementTree.fromstring(xml_content)
-        paragraphs = [
-            "".join(_texts_in_element(paragraph)).strip()
-            for paragraph in root.iter()
-            if _local_name(paragraph.tag) == "p"
-        ]
-        paragraphs = [paragraph for paragraph in paragraphs if paragraph]
+        
+        paragraphs = []
+        headings = []
+        
+        for paragraph in root.iter():
+            if _local_name(paragraph.tag) == "p":
+                text = "".join(_texts_in_element(paragraph)).strip()
+                if not text:
+                    continue
+                paragraphs.append(text)
+                
+                # Check for heading
+                p_style = None
+                for child in paragraph.iter():
+                    if _local_name(child.tag) == "pStyle":
+                        p_style = child.attrib.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val") or child.attrib.get("val")
+                        break
+                if p_style and p_style.startswith("Heading"):
+                    try:
+                        level = int(p_style.replace("Heading", ""))
+                        headings.append({"level": level, "text": text})
+                    except ValueError:
+                        pass
+
         content = "\n".join(paragraphs)
         return ParsedPage(
             page_no=1,
             section_title=_first_non_empty_line(content) or file_path.name,
             content_type="text",
             content=content,
-            metadata={"file_type": "docx", "paragraph_count": len(paragraphs)},
+            metadata={
+                "file_type": "docx", 
+                "paragraph_count": len(paragraphs),
+                "headings": headings
+            },
         )
 
     def _parse_pptx(self, file_path: Path) -> list[ParsedPage]:
@@ -157,13 +179,26 @@ class StructuredDocumentParser:
                 root = ElementTree.fromstring(archive.read(slide_name))
                 lines = _group_texts_by_paragraph(root)
                 content = "\n".join(line for line in lines if line)
+                
+                # Check for table
+                has_tables = False
+                for tbl in root.iter():
+                    if _local_name(tbl.tag) == "tbl":
+                        has_tables = True
+                        break
+
                 pages.append(
                     ParsedPage(
                         page_no=page_no,
                         section_title=_first_non_empty_line(content) or f"Slide {page_no}",
                         content_type="text",
                         content=content,
-                        metadata={"file_type": "pptx", "slide_path": slide_name},
+                        metadata={
+                            "file_type": "pptx", 
+                            "slide_path": slide_name,
+                            "slide_page": page_no,
+                            "has_tables": has_tables
+                        },
                     )
                 )
         return pages
@@ -177,15 +212,29 @@ class StructuredDocumentParser:
             )
             pages = []
             for page_no, sheet_name in enumerate(sheet_names, start=1):
-                rows = _read_sheet_rows(archive.read(sheet_name), shared_strings)
+                xml_content = archive.read(sheet_name)
+                rows = _read_sheet_rows(xml_content, shared_strings)
                 content = "\n".join("\t".join(row).rstrip() for row in rows if any(row))
+                
+                # Identify table region
+                root = ElementTree.fromstring(xml_content)
+                table_region = "unknown"
+                for dim in root.iter():
+                    if _local_name(dim.tag) == "dimension":
+                        table_region = dim.attrib.get("ref", "unknown")
+                        break
+
                 pages.append(
                     ParsedPage(
                         page_no=page_no,
                         section_title=Path(sheet_name).stem,
                         content_type="table",
                         content=content,
-                        metadata={"file_type": "xlsx", "sheet_name": Path(sheet_name).stem},
+                        metadata={
+                            "file_type": "xlsx", 
+                            "sheet_name": Path(sheet_name).stem,
+                            "table_region": table_region
+                        },
                     )
                 )
         return pages

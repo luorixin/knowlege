@@ -2,7 +2,7 @@ import { http, unwrapResponse } from './http'
 import type { EntityId, EvalCase, EvalDataset, EvalRunResult, SearchFilters } from './types'
 
 export interface CreateEvalDatasetPayload {
-  tenant_id: number
+  tenant_id: EntityId
   space_id: EntityId
   name: string
   description?: string
@@ -21,6 +21,14 @@ export interface CreateEvalCasePayload {
 
 export async function createEvalDataset(payload: CreateEvalDatasetPayload): Promise<EvalDataset> {
   return unwrapResponse(await http.post('/api/eval/dataset', payload))
+}
+
+export async function listEvalDatasets(): Promise<EvalDataset[]> {
+  return unwrapResponse(await http.get('/api/eval/dataset'))
+}
+
+export async function listEvalCases(datasetId: EntityId): Promise<EvalCase[]> {
+  return unwrapResponse(await http.get(`/api/eval/dataset/${datasetId}/cases`))
 }
 
 export async function createEvalCase(payload: CreateEvalCasePayload): Promise<EvalCase> {

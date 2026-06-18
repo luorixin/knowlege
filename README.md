@@ -3,7 +3,7 @@
 本仓库采用前后端分离 + Python AI 服务的 MVP 工程结构：
 
 - `backend/`：Spring Boot 3 REST API，预留用户权限、知识库、文档、检索、问答、任务、审计模块。
-- `ai-service/`：FastAPI AI 服务，预留解析、切片、Embedding、Rerank、LLM 调用接口，当前实现为 mock。
+- `ai-service/`：FastAPI AI 服务，预留解析、切片、Embedding、Rerank、LLM 调用接口，默认 mock，可按配置切换 OpenAI-compatible provider。
 - `web/`：Vue 3 + TypeScript + Element Plus 前端控制台。
 - `deploy/`：本地开发依赖编排，包含 PostgreSQL、MySQL、Redis、MinIO、OpenSearch、Milvus。
 
@@ -36,7 +36,7 @@ curl http://localhost:8080/api/v1/health
 curl http://localhost:8080/actuator/health
 ```
 
-Redis、MinIO、OpenSearch、Milvus 地址通过 `backend/src/main/resources/application.yml` 和 `application-dev.yml` 的环境变量预留，当前不会在健康检查中强制连接 OpenSearch / Milvus。
+Redis、MinIO、OpenSearch、Milvus 地址通过 `backend/src/main/resources/application.yml` 和 `application-dev.yml` 的环境变量配置。默认本地开发仍使用数据库/mock 检索；设置 `SEARCH_ENGINE=opensearch`、`VECTOR_STORE_ENGINE=milvus` 后会启用真实索引与检索客户端。
 
 数据库迁移使用 Flyway，默认位置：
 
@@ -100,6 +100,140 @@ curl http://localhost:8080/api/v1/documents/{documentId}/parse-status
 
 当前支持文件扩展名：`pdf`、`doc`、`docx`、`ppt`、`pptx`、`xls`、`xlsx`、`md`、`markdown`、`txt`。
 
+### 文档解析任务执行
+
+上传文档会创建 `kb_document_parse_task`，状态为 `PENDING`。后端现在可以调用 Python AI 服务解析本地文件，并将解析结果继续交给切片、脱敏和 chunk 入库流程。切片完成后会为每个 chunk 创建 `kb_embedding_index_task`，供 Embedding / 关键词索引 / 向量索引任务消费。
+
+默认不会自动轮询执行解析任务，避免本地只启动后端时反复调用未启动的 AI 服务。可以手动运行：
+
+```bash
+curl -X POST http://localhost:8080/api/v1/tasks/{taskId}/run \
+  -H 'X-User-Id: 42' \
+  -H 'X-Tenant-Id: 1001'
+```
+
+查询某个知识库的解析任务：
+
+```bash
+curl 'http://localhost:8080/api/v1/tasks/parse?spaceId={spaceId}&status=PENDING&limit=50' \
+  -H 'X-User-Id: 42' \
+  -H 'X-Tenant-Id: 1001'
+```
+
+失败任务可以重试，重试会清理错误信息并把状态重置为 `PENDING`：
+
+```bash
+curl -X POST http://localhost:8080/api/v1/tasks/{taskId}/retry \
+  -H 'X-User-Id: 42' \
+  -H 'X-Tenant-Id: 1001'
+```
+
+如需让后端定时消费 `PENDING` 任务，可开启：
+
+```bash
+export PARSE_TASK_EXECUTOR_AUTO_RUN=true
+export PARSE_TASK_EXECUTOR_FIXED_DELAY=10s
+export PARSE_TASK_WORKER_ID=backend-local
+```
+
+### Embedding 与索引任务执行
+
+`kb_embedding_index_task` 会通过 `EmbeddingProvider` 生成向量，并通过 `KeywordSearchClient`、`VectorStoreClient` 写入索引。默认配置使用本地 mock/database，适合离线开发；开启真实链路后：
+
+- `EMBEDDING_PROVIDER=ai-service`：后端调用 FastAPI `/api/v1/embeddings`。
+- `SEARCH_ENGINE=opensearch`：任务执行时写 OpenSearch，检索时知识库 owner 走 OpenSearch，非 owner 回退数据库权限检索。
+- `VECTOR_STORE_ENGINE=milvus`：任务执行时通过 Milvus REST 写入向量，检索时知识库 owner 走 Milvus，非 owner 回退 mock 权限检索。
+
+Embedding mock 统一为 `mock-embedding-v1`、16 维，避免 Java/Python 两边维度漂移。
+
+查询某个知识库的 Embedding 索引任务：
+
+```bash
+curl 'http://localhost:8080/api/v1/tasks/embedding?spaceId={spaceId}&status=PENDING&limit=50' \
+  -H 'X-User-Id: 42' \
+  -H 'X-Tenant-Id: 1001'
+```
+
+手动执行单个任务：
+
+```bash
+curl -X POST http://localhost:8080/api/v1/tasks/embedding/{taskId}/run \
+  -H 'X-User-Id: 42' \
+  -H 'X-Tenant-Id: 1001'
+```
+
+失败任务可以重试：
+
+```bash
+curl -X POST http://localhost:8080/api/v1/tasks/embedding/{taskId}/retry \
+  -H 'X-User-Id: 42' \
+  -H 'X-Tenant-Id: 1001'
+```
+
+如需让后端定时消费 Embedding 任务，可开启：
+
+```bash
+export EMBEDDING_TASK_EXECUTOR_AUTO_RUN=true
+export EMBEDDING_TASK_EXECUTOR_FIXED_DELAY=10s
+```
+
+启用真实检索索引链路的关键环境变量：
+
+```bash
+export EMBEDDING_PROVIDER=ai-service
+export AI_SERVICE_EMBEDDING_PATH=/api/v1/embeddings
+export AI_SERVICE_EMBEDDING_MODEL=mock-embedding-v1
+export EMBEDDING_DIMENSION=16
+
+export SEARCH_ENGINE=opensearch
+export OPENSEARCH_ENDPOINT=http://localhost:9200
+export SEARCH_INDEX_PREFIX=knowledge
+
+export VECTOR_STORE_ENGINE=milvus
+export MILVUS_ENDPOINT=http://localhost:19530
+export MILVUS_TOKEN=root:Milvus
+export VECTOR_COLLECTION_PREFIX=knowledge
+```
+
+AI 服务配置：
+
+```bash
+export AI_SERVICE_ENDPOINT=http://localhost:8001
+export AI_SERVICE_PARSE_PATH=/api/parse/document
+export AI_SERVICE_EMBEDDING_PATH=/api/v1/embeddings
+export AI_SERVICE_TIMEOUT=60s
+```
+
+AI 服务的 Embedding / Rerank / LLM 默认都是 `mock`，可按环境变量切到真实服务：
+
+```bash
+# OpenAI-compatible / Qwen / 私有兼容服务
+export EMBEDDING_PROVIDER=openai-compatible
+export EMBEDDING_MODEL_NAME=text-embedding-v3
+export EMBEDDING_DIMENSION=1024
+export AI_EMBEDDING_ENDPOINT=https://api.example.com/v1
+export EMBEDDING_API_KEY=change-me
+
+export LLM_PROVIDER=openai-compatible
+export LLM_MODEL_NAME=qwen-plus
+export AI_LLM_ENDPOINT=https://api.example.com/v1
+export LLM_API_KEY=change-me
+export LLM_TEMPERATURE=0
+export LLM_MAX_TOKENS=2048
+
+# Rerank 使用私有 HTTP 服务时，endpoint 是完整 rerank 地址
+export RERANK_PROVIDER=private-http
+export RERANK_MODEL_NAME=bge-reranker
+export AI_RERANK_ENDPOINT=http://localhost:8002/api/v1/rerank
+export RERANK_API_KEY=change-me
+```
+
+协议约定：
+
+- Embedding 调用 OpenAI-compatible `POST {AI_EMBEDDING_ENDPOINT}/embeddings`，请求字段为 `model`、`input`、可选 `dimensions`。
+- LLM 调用 OpenAI-compatible `POST {AI_LLM_ENDPOINT}/chat/completions`，请求字段为 `model`、`messages`、`temperature`、`max_completion_tokens`。
+- Rerank 私有 HTTP 调用 `AI_RERANK_ENDPOINT`，请求字段为 `query`、`documents`、`model`、`top_k`，返回可使用 `documents` 或 `results`。
+
 ### 文档切片 API
 
 后端当前提供基础切片与入库能力，接收 Python 解析服务返回的 `pages` 结构后写入 `kb_document_chunk`，并更新文档版本的 `chunk_count`、`total_tokens`、`parse_status` 以及最新解析任务状态。重新切片会删除当前版本旧 chunk 后按 `chunk_index` 从 0 重建。
@@ -153,7 +287,7 @@ curl http://localhost:8080/api/v1/documents/{documentId}/desensitization-mapping
 
 ### 混合检索 API
 
-当前 MVP 提供后端本地混合检索：权限和 metadata 过滤先发生在文档范围上，随后执行数据库 `like` 关键词检索和 mock 向量检索，合并、去重、排序后返回候选 chunk。真实 OpenSearch / Milvus 后续可替换 `KeywordChunkSearchClient` 和 `VectorChunkSearchClient` 实现。
+当前提供可切换混合检索：默认使用数据库关键词检索和 mock 向量检索；设置 `SEARCH_ENGINE=opensearch` 后关键词召回走 OpenSearch；设置 `VECTOR_STORE_ENGINE=milvus` 后向量召回走 Milvus REST。权限过滤仍在检索链路前计算，非知识库 owner 的真实外部检索会回退到后端数据库权限检索，避免外部索引绕过文档权限。
 
 ```bash
 curl -X POST http://localhost:8080/api/retrieval/search \
@@ -405,6 +539,21 @@ cp ai-service/.env.example ai-service/.env
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 ```
 
+### 分环境启动
+
+按需选择环境组合，基础环境是 MVP 最低要求：
+
+```bash
+# 基础环境（数据库 + 缓存 + 存储 + 应用）
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build postgres redis minio backend ai-service web
+
+# 搜索环境（基础 + OpenSearch）
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml --profile search up -d --build opensearch
+
+# 向量环境（基础 + Milvus）
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml --profile vector up -d --build etcd milvus-minio milvus
+```
+
 访问地址：
 
 ```text
@@ -446,6 +595,55 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml --profile vec
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml \
   --profile mysql --profile search --profile vector \
   up -d --build
+```
+
+### 中间件初始化
+
+启动 OpenSearch 或 Milvus profile 后，运行初始化脚本创建 index template / collection / bucket（幂等，可重复执行）：
+
+```bash
+# 仅 MinIO bucket（基础环境初始化）
+bash deploy/scripts/init-all.sh
+
+# + OpenSearch index template
+bash deploy/scripts/init-all.sh --search
+
+# + Milvus collection（需要先安装 pymilvus）
+cd ai-service && .venv/bin/python -m pip install '.[deploy]' && cd ..
+bash deploy/scripts/init-all.sh --search --vector
+```
+
+### 健康检查分组
+
+后端 Actuator 健康检查按组件分组，每个分组独立报告状态，可选中间件未启动不会拖垮整体健康：
+
+```bash
+# 整体健康（db + redis 必须可用；storage/ai-service/search/vector 软探测）
+curl http://localhost:8080/actuator/health
+
+# 分组查看
+curl http://localhost:8080/actuator/health/db
+curl http://localhost:8080/actuator/health/redis
+curl http://localhost:8080/actuator/health/storage
+curl http://localhost:8080/actuator/health/ai-service
+curl http://localhost:8080/actuator/health/search
+curl http://localhost:8080/actuator/health/vector
+```
+
+- `db` / `redis`：不可用时该分组报告 DOWN，同时影响整体健康。
+- `storage` / `ai-service` / `search` / `vector`：始终报告 UP，探测失败仅在 detail 中记录 warning，保证本地不启动可选中间件时整体仍为 UP。
+
+### 本地压测脚本
+
+```bash
+# 批量上传种子文档到知识库（自动创建知识空间）
+./scripts/seed-documents.sh
+
+# 检索延迟测试（10 轮，输出 p50/p95）
+./scripts/bench-retrieval.sh
+
+# 自定义参数
+ROUNDS=20 TOP_K=10 SPACE_ID=42 ./scripts/bench-retrieval.sh
 ```
 
 停止服务：

@@ -1,11 +1,11 @@
 <template>
-  <main class="login-page">
-    <section class="login-panel">
-      <div class="login-brand">
-        <span class="brand-mark">K</span>
+  <main class="grid min-h-screen place-items-center p-6 bg-slate-100">
+    <section class="w-full max-w-[440px] p-8 bg-white border border-slate-200 rounded-xl shadow-sm">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="inline-grid w-8 h-8 text-white bg-emerald-700 rounded-md place-items-center font-bold text-lg">K</span>
         <div>
-          <h1>企业知识库智能体</h1>
-          <p>MVP 控制台</p>
+          <h1 class="m-0 text-lg leading-snug font-bold text-slate-900">企业知识库智能体</h1>
+          <p class="m-0 mt-1 text-slate-500 text-sm">MVP 控制台</p>
         </div>
       </div>
 
@@ -17,15 +17,15 @@
         @submit.prevent
       >
         <el-form-item label="用户 ID" prop="userId">
-          <el-input-number v-model="form.userId" :min="1" controls-position="right" />
+          <el-input v-model="form.userId" />
         </el-form-item>
         <el-form-item label="租户 ID" prop="tenantId">
-          <el-input-number v-model="form.tenantId" :min="1" controls-position="right" />
+          <el-input v-model="form.tenantId" />
         </el-form-item>
         <el-form-item label="显示名称" prop="displayName">
           <el-input v-model="form.displayName" />
         </el-form-item>
-        <el-button class="login-submit" type="primary" :loading="submitting" @click="submit">
+        <el-button class="w-full mt-2" type="primary" size="large" :loading="submitting" @click="submit">
           登录
         </el-button>
       </el-form>
@@ -51,8 +51,8 @@ const formRef = ref<FormInstance>()
 const submitting = ref(false)
 
 const form = reactive({
-  userId: 42,
-  tenantId: 1001,
+  userId: '42',
+  tenantId: '1001',
   displayName: 'MVP 用户',
 })
 

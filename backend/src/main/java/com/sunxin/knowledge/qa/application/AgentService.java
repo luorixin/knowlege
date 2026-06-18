@@ -98,11 +98,17 @@ public class AgentService {
         CandidateBundle bundle = enrichCandidates(retrieval.results());
         List<RerankedChunk> reranked = rerank(intent, bundle.candidates());
         ContextBuildResult context = contextBuilderService.build(new ContextBuildRequest(reranked, MAX_CONTEXT_CHARS));
-        LlmResponse llmResponse = llmProvider.generate(new LlmRequest(
-                intent.query(),
-                context.context(),
-                context.citations()
-        ));
+        
+        LlmResponse llmResponse;
+        if (context.context() == null || context.context().isBlank()) {
+            llmResponse = new LlmResponse("未在当前知识库中找到可靠依据。");
+        } else {
+            llmResponse = llmProvider.generate(new LlmRequest(
+                    intent.query(),
+                    context.context(),
+                    context.citations()
+            ));
+        }
 
         KbQueryMessage userMessage = conversationRecorder.saveUserMessage(session, intent.query());
         KbQueryMessage assistantMessage = conversationRecorder.saveAssistantMessage(
@@ -112,10 +118,20 @@ public class AgentService {
         );
         conversationRecorder.saveCitations(session, assistantMessage, context.citations(), bundle.chunksById());
 
+        Map<String, Object> debugInfo = null;
+        if (resolvedUser.roleCodes().contains("ADMIN") || resolvedUser.roleCodes().contains("admin") || resolvedUser.roleCodes().contains("KNOWLEDGE_ADMIN")) {
+            debugInfo = Map.of(
+                    "retrieval_results", retrieval.results(),
+                    "reranked_chunks", reranked,
+                    "final_context", context.context()
+            );
+        }
+
         return new AgentChatResponse(
                 session.getId(),
                 llmResponse.answer(),
-                toCitationResponses(context.citations())
+                toCitationResponses(context.citations(), bundle.chunksById()),
+                debugInfo
         );
     }
 
@@ -194,19 +210,31 @@ public class AgentService {
         );
     }
 
-    private static List<AgentCitationResponse> toCitationResponses(List<ContextCitation> citations) {
+    private static List<AgentCitationResponse> toCitationResponses(
+            List<ContextCitation> citations,
+            Map<Long, KbDocumentChunk> chunksById
+    ) {
         if (citations == null || citations.isEmpty()) {
             return List.of();
         }
         return citations.stream()
                 .sorted(Comparator.comparing(ContextCitation::citationNo))
-                .map(citation -> new AgentCitationResponse(
-                        citation.citationNo(),
-                        citation.docId(),
-                        citation.docTitle(),
-                        citation.startPageNo(),
-                        citation.sectionTitle()
-                ))
+                .map(citation -> {
+                    String chunkContent = citation.chunkIds().stream()
+                            .map(chunksById::get)
+                            .filter(c -> c != null)
+                            .map(KbDocumentChunk::getContent)
+                            .collect(Collectors.joining("\n\n"));
+                    return new AgentCitationResponse(
+                            citation.citationNo(),
+                            citation.docId(),
+                            citation.docTitle(),
+                            citation.startPageNo(),
+                            citation.sectionTitle(),
+                            chunkContent,
+                            citation.sourceUri()
+                    );
+                })
                 .toList();
     }
 

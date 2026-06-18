@@ -231,6 +231,7 @@ async function submit() {
       confidentialLevel: form.confidentialLevel,
     })
     ElMessage.success('文档已入库')
+    router.push('/tasks')
   } catch (err) {
     error.value = apiErrorMessage(err)
   } finally {

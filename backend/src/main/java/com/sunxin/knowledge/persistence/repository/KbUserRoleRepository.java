@@ -10,6 +10,10 @@ import com.sunxin.knowledge.persistence.entity.KbUserRole;
 
 public interface KbUserRoleRepository extends JpaRepository<KbUserRole, Long> {
 
+    java.util.List<KbUserRole> findByUserIdAndStatus(Long userId, String status);
+
+    java.util.List<KbUserRole> findByTenantId(Long tenantId);
+
     @Query("""
             select r.code
             from KbUserRole ur

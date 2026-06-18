@@ -16,6 +16,12 @@ public record AgentCitationResponse(
         Integer pageNo,
 
         @JsonProperty("section_title")
-        String sectionTitle
+        String sectionTitle,
+
+        @JsonProperty("chunk_content")
+        String chunkContent,
+
+        @JsonProperty("source_uri")
+        String sourceUri
 ) {
 }

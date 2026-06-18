@@ -1,109 +1,113 @@
 <template>
-  <section class="stitch-workspace">
-    <!-- Left Column: Knowledge Filters -->
-    <aside class="stitch-filter-panel glass-panel">
-      <div class="panel-header">
-        <span class="material-symbols-outlined text-primary">filter_list</span>
-        <h2>知识库过滤</h2>
-      </div>
-
-      <div class="filter-group">
-        <el-form label-position="top">
-          <el-form-item label="知识库">
-            <el-select
-              v-model="spaceId"
-              class="stitch-select full-width"
-              placeholder="选择知识库"
-              @change="selectSpace"
-            >
-              <el-option
-                v-for="space in knowledgeStore.spaces"
-                :key="space.id"
-                :label="space.name"
-                :value="space.id"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="文档类型">
-            <el-select v-model="filters.doc_type" class="stitch-select full-width" clearable>
+  <div class="flex h-[calc(100vh-74px)] bg-slate-50 -mx-7 -my-6 overflow-hidden">
+    <!-- Main Chat Area -->
+    <main class="flex-1 flex flex-col relative min-w-0">
+      <!-- Top Control Bar (replaces the left sidebar) -->
+      <header class="flex items-center gap-4 px-8 py-4 bg-white/80 backdrop-blur-md border-b border-slate-200/60 z-10 shrink-0">
+        <div class="flex items-center gap-2 font-semibold text-slate-800 shrink-0">
+          <span class="material-symbols-outlined text-blue-800">filter_list</span>
+          <span>知识库配置</span>
+        </div>
+        <el-select v-model="spaceId" class="w-48" placeholder="选择知识库" @change="selectSpace">
+          <el-option v-for="space in knowledgeStore.spaces" :key="space.id" :label="space.name" :value="space.id" />
+        </el-select>
+        
+        <el-popover placement="bottom-start" :width="320" trigger="click">
+          <template #reference>
+            <el-button class="ml-2" plain>
+              <span class="material-symbols-outlined mr-1" style="font-size: 18px;">tune</span>
+              高级过滤
+            </el-button>
+          </template>
+          <div class="flex flex-col gap-3">
+            <h4 class="m-0 text-sm font-semibold text-slate-700">文档属性过滤</h4>
+            <el-select v-model="filters.doc_type" size="small" clearable placeholder="文档类型">
               <el-option label="Proposal" value="proposal" />
               <el-option label="SOW" value="sow" />
               <el-option label="制度文档" value="policy" />
               <el-option label="行业研究" value="research" />
             </el-select>
-          </el-form-item>
-          <el-form-item label="行业">
-            <el-input v-model="filters.industry" class="stitch-input" clearable placeholder="例如：金融" />
-          </el-form-item>
-          <el-form-item label="服务线">
-            <el-input v-model="filters.service_line" class="stitch-input" clearable placeholder="例如：数据治理" />
-          </el-form-item>
-          <el-form-item label="起始年份">
-            <el-input-number v-model="filters.year_from" class="stitch-input full-width" :min="2000" :max="2100" />
-          </el-form-item>
-        </el-form>
+            <el-input v-model="filters.industry" size="small" clearable placeholder="行业 (例如：金融)" />
+            <el-input v-model="filters.service_line" size="small" clearable placeholder="服务线 (例如：数据治理)" />
+            <el-input-number v-model="filters.year_from" size="small" class="w-full" :min="2000" :max="2100" placeholder="起始年份" />
+          </div>
+        </el-popover>
+
+        <div class="ml-auto">
+          <button @click="chatStore.clear()" class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+            <span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+            清空对话
+          </button>
+        </div>
+      </header>
+
+      <!-- Chat Feed -->
+      <div id="chat-container" class="flex-1 overflow-y-auto px-8 py-12 pb-48">
+        <div class="max-w-3xl mx-auto flex flex-col gap-12">
+          <el-empty v-if="chatStore.messages.length === 0" :image-size="120" description="暂无对话，请在下方输入问题" />
+
+          <article v-for="message in chatStore.messages" :key="message.id" class="group relative">
+            
+            <!-- User Query (Marginalia style heading) -->
+            <div v-if="message.role === 'user'" class="mb-6">
+              <h2 class="text-2xl font-bold text-slate-900 tracking-tight leading-snug m-0">
+                {{ message.content }}
+              </h2>
+            </div>
+
+            <!-- AI Response (Editorial Serif Document style) -->
+            <div v-else-if="message.role === 'assistant'" class="flex gap-6">
+              <!-- Avatar gutter -->
+              <div class="shrink-0 w-8 flex flex-col items-center pt-1">
+                <div class="w-8 h-8 rounded bg-blue-900 flex items-center justify-center shadow-sm">
+                  <span class="material-symbols-outlined text-white text-[18px]">smart_toy</span>
+                </div>
+              </div>
+              
+              <!-- Content -->
+              <div class="flex-1 min-w-0">
+                <div 
+                  class="markdown-body"
+                  :class="{ 'text-red-700': message.error }"
+                  v-html="renderMarkdown(message.content)"
+                  @click="handleCitationClick"
+                ></div>
+
+                <div v-if="message.content.includes(noEvidenceText)" class="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-50 text-amber-700 text-sm font-medium border border-amber-200/60">
+                  <span class="material-symbols-outlined text-[16px]">warning</span>
+                  未在当前知识库中找到可靠依据
+                </div>
+
+                <div class="mt-4 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity" v-if="userStore.isAdmin && message.debugInfo">
+                  <button @click="openDebug(message.debugInfo)" class="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 px-2.5 py-1 rounded transition-colors border border-slate-200/60">
+                    <span class="material-symbols-outlined text-[14px]">bug_report</span>
+                    检索调试
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- Loading State -->
+          <article v-if="chatStore.sending" class="flex gap-6">
+            <div class="shrink-0 w-8 flex flex-col items-center pt-1">
+              <div class="w-8 h-8 rounded bg-blue-900 flex items-center justify-center shadow-sm opacity-50 animate-pulse">
+                <span class="material-symbols-outlined text-white text-[18px]">smart_toy</span>
+              </div>
+            </div>
+            <div class="flex-1 pt-1">
+              <div class="h-4 bg-slate-200 rounded w-3/4 animate-pulse mb-4"></div>
+              <div class="h-4 bg-slate-200 rounded w-full animate-pulse mb-4"></div>
+              <div class="h-4 bg-slate-200 rounded w-5/6 animate-pulse"></div>
+            </div>
+          </article>
+        </div>
       </div>
 
-      <div class="panel-footer">
-        <button class="clear-btn" @click="chatStore.clear()">
-          <span class="material-symbols-outlined">delete_sweep</span>
-          清空会话
-        </button>
-      </div>
-    </aside>
-
-    <!-- Middle Column: Chat Interface -->
-    <main class="stitch-dialog-panel">
-      <div class="chat-feed" id="chat-container">
-        <el-empty
-          v-if="chatStore.messages.length === 0"
-          :image-size="120"
-          description="暂无对话，请在下方输入问题"
-        />
-
-        <article
-          v-for="message in chatStore.messages"
-          :key="message.id"
-          class="message-wrapper"
-          :class="`message-${message.role}`"
-        >
-          <div class="message-role" v-if="message.role === 'assistant'">
-            <div class="icon-bg">
-              <span class="material-symbols-outlined">smart_toy</span>
-            </div>
-            <span>AI Intelligence</span>
-          </div>
-
-          <div class="message-bubble" :class="{ 'is-error': message.error }">
-            <div class="message-content">{{ message.content }}</div>
-            <div v-if="message.role === 'assistant' && message.content.includes(noEvidenceText)" class="no-evidence">
-              未在当前知识库中找到可靠依据
-            </div>
-            <el-collapse v-if="message.citations.length > 0" class="message-citations">
-              <el-collapse-item title="展开引用来源" name="citations">
-                <CitationPanel :citations="message.citations" />
-              </el-collapse-item>
-            </el-collapse>
-          </div>
-        </article>
-
-        <article v-if="chatStore.sending" class="message-wrapper message-assistant">
-          <div class="message-role">
-            <div class="icon-bg">
-              <span class="material-symbols-outlined">smart_toy</span>
-            </div>
-            <span>AI Intelligence</span>
-          </div>
-          <div class="message-bubble">
-            <el-skeleton :rows="3" animated />
-          </div>
-        </article>
-      </div>
-
-      <!-- Floating Input Area -->
-      <div class="floating-input-area">
-        <div class="glass-input-panel">
-          <button class="icon-btn">
+      <!-- Input Area -->
+      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-3xl px-6">
+        <div class="bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-2xl p-2 flex items-end gap-2 transition-shadow focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.12)] focus-within:border-blue-300">
+          <button class="shrink-0 p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors mb-0.5 outline-none">
             <span class="material-symbols-outlined">attach_file</span>
           </button>
           <el-input
@@ -111,43 +115,74 @@
             type="textarea"
             :autosize="{ minRows: 1, maxRows: 6 }"
             resize="none"
-            placeholder="Type your query..."
-            class="stitch-textarea"
+            placeholder="提出问题，AI 将为您检索知识库并进行分析..."
+            class="stitch-chat-input flex-1"
             @keydown.meta.enter.prevent="send"
             @keydown.ctrl.enter.prevent="send"
           />
-          <button class="send-btn" :disabled="!spaceId || !question.trim()" @click="send">
+          <button 
+            class="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-blue-800 text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:pointer-events-none mb-0.5 outline-none"
+            :disabled="!spaceId || !question.trim()" 
+            @click="send"
+          >
             <span class="material-symbols-outlined">send</span>
           </button>
         </div>
-        <p class="disclaimer">AI can make mistakes. Check key info.</p>
+        <p class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-4">
+          AI generated content may be inaccurate
+        </p>
       </div>
     </main>
 
-    <!-- Right Column: Citation References -->
-    <aside class="stitch-reference-panel glass-panel">
-      <div class="panel-header">
-        <div class="flex-row">
-          <span class="material-symbols-outlined text-primary">bookmarks</span>
-          <h2>引用来源</h2>
+    <!-- Right Column: Citations Sidebar -->
+    <aside class="w-[420px] shrink-0 border-l border-slate-200/60 bg-slate-50 flex flex-col shadow-[-4px_0_15px_rgba(0,0,0,0.02)] z-10">
+      <div class="px-6 py-5 border-b border-slate-200/60 flex items-center justify-between bg-white/50 backdrop-blur-sm shrink-0">
+        <div class="flex items-center gap-2 text-slate-800 font-semibold">
+          <span class="material-symbols-outlined text-amber-600">book_4</span>
+          <span>证据溯源</span>
         </div>
-        <span class="source-count" v-if="chatStore.activeCitations?.length">{{ chatStore.activeCitations.length }} Sources</span>
+        <span v-if="chatStore.activeCitations?.length" class="px-2.5 py-1 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-md shadow-sm">
+          {{ chatStore.activeCitations.length }} Sources
+        </span>
       </div>
-
-      <div style="margin-top: 24px" v-if="chatStore.activeCitations?.length">
-        <CitationPanel :citations="chatStore.activeCitations" />
-      </div>
-      <div v-else class="empty-citations">
-        <span class="material-symbols-outlined text-[60px]">analytics</span>
-        <p>暂无引用</p>
+      
+      <div class="flex-1 overflow-y-auto relative">
+        <CitationPanel 
+          v-if="chatStore.activeCitations?.length"
+          :citations="chatStore.activeCitations" 
+          :active-id="activeCitationId"
+        />
+        <div v-else class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 opacity-60">
+          <span class="material-symbols-outlined text-[64px] mb-4 font-light">library_books</span>
+          <p class="font-medium tracking-wide">暂无引用数据</p>
+        </div>
       </div>
     </aside>
-  </section>
+
+    <!-- Debug Drawer -->
+    <el-drawer v-model="debugVisible" title="检索链路调试" size="600px">
+      <div v-if="currentDebugInfo">
+        <el-collapse v-model="debugActiveNames" class="border-none">
+          <el-collapse-item title="最终给到模型的 Context" name="1">
+            <pre class="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-700 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ currentDebugInfo.final_context || '无' }}</pre>
+          </el-collapse-item>
+          <el-collapse-item title="向量召回与 Rerank 得分" name="2">
+            <pre class="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-700 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ JSON.stringify(currentDebugInfo.reranked_chunks, null, 2) }}</pre>
+          </el-collapse-item>
+          <el-collapse-item title="关键词检索召回 (如果有)" name="3">
+            <pre class="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-700 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ JSON.stringify(currentDebugInfo.retrieval_results, null, 2) }}</pre>
+          </el-collapse-item>
+        </el-collapse>
+      </div>
+    </el-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, ref, nextTick, watch } from 'vue'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 import CitationPanel from '@/components/CitationPanel.vue'
 import type { EntityId, SearchFilters } from '@/api/types'
@@ -171,6 +206,16 @@ const filters = reactive<SearchFilters>({
   service_line: '',
   year_from: undefined,
 })
+
+const debugVisible = ref(false)
+const currentDebugInfo = ref<any>(null)
+const debugActiveNames = ref(['1', '2'])
+const activeCitationId = ref<string | null>(null)
+
+function openDebug(info: any) {
+  currentDebugInfo.value = info
+  debugVisible.value = true
+}
 
 const selectedSpace = computed(() => knowledgeStore.spaces.find((item) => item.id === spaceId.value) || null)
 
@@ -210,346 +255,129 @@ async function send() {
   question.value = ''
   await chatStore.send(spaceId.value, currentQuestion, cleanedFilters)
 }
+
+function renderMarkdown(text: string) {
+  if (!text) return ''
+  // Format citations from [1] or 【1】 to styled HTML spans with data-id
+  const processedText = text.replace(/\[(\d+)\]|【(\d+)】/g, (match, p1, p2) => {
+    const id = p1 || p2
+    return `<sup class="citation-link inline-flex items-center justify-center min-w-[1.2em] h-[1.2em] px-0.5 rounded text-[0.75em] font-sans font-bold text-blue-700 bg-blue-50 border border-blue-200/60 cursor-pointer hover:bg-blue-600 hover:text-white transition-colors mx-0.5 align-super select-none" data-id="${id}">${id}</sup>`
+  })
+  const rawHtml = marked.parse(processedText, { async: false }) as string
+  return DOMPurify.sanitize(rawHtml)
+}
+
+function handleCitationClick(e: MouseEvent) {
+  let target = e.target as HTMLElement
+  
+  // Walk up just in case
+  while (target && target !== e.currentTarget) {
+    if (target.classList && target.classList.contains('citation-link')) {
+      e.preventDefault()
+      const id = target.getAttribute('data-id')
+      if (id) {
+        activeCitationId.value = id
+        // Scroll the citation panel to the active citation
+        const citationEl = document.getElementById(`citation-card-${id}`)
+        if (citationEl) {
+          citationEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }
+      return
+    }
+    target = target.parentNode as HTMLElement
+  }
+}
 </script>
 
 <style scoped>
-/* Stitch Design System Colors & Variables */
-* {
-  box-sizing: border-box;
+/* Markdown Content Styles */
+.markdown-body {
+  color: theme('colors.slate.800');
+  font-family: theme('fontFamily.serif');
+  line-height: 1.8;
+  font-size: 1.125rem; /* text-lg */
 }
-
-.text-primary { color: #0058be; }
-.full-width { width: 100%; }
-
-.stitch-workspace {
-  display: flex;
-  height: calc(100vh - 74px); /* assuming app header is ~74px */
-  background: #f7f9fb;
-  color: #191c1e;
-  font-family: 'Inter', sans-serif;
-  overflow: hidden;
-  margin: -24px -28px; /* Override app-main padding from main.css */
+.markdown-body :deep(p) {
+  margin-bottom: 1.25rem;
 }
-
-/* Scrollbars */
-.stitch-workspace ::-webkit-scrollbar {
-  width: 6px;
+.markdown-body :deep(p:last-child) {
+  margin-bottom: 0;
 }
-.stitch-workspace ::-webkit-scrollbar-track {
-  background: transparent;
-}
-.stitch-workspace ::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 10px;
-}
-.stitch-workspace ::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1;
-}
-
-.glass-panel {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Left Panel */
-.stitch-filter-panel {
-  width: 320px;
-  border-right: 1px solid rgba(194, 198, 214, 0.3);
-  display: flex;
-  flex-direction: column;
-  padding: 32px 24px;
-  flex-shrink: 0;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 32px;
-}
-.panel-header h2 {
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0;
-}
-
-.flex-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.filter-group {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-:deep(.el-form-item__label) {
-  font-size: 12px;
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4) {
+  font-family: theme('fontFamily.sans');
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: #424754;
-  padding-bottom: 4px;
+  color: theme('colors.slate.900');
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+.markdown-body :deep(h1) { font-size: 1.5rem; }
+.markdown-body :deep(h2) { font-size: 1.25rem; }
+.markdown-body :deep(h3) { font-size: 1.125rem; }
+.markdown-body :deep(ul), .markdown-body :deep(ol) {
+  margin-bottom: 1.25rem;
+  padding-left: 1.5rem;
+}
+.markdown-body :deep(ul) { list-style-type: disc; }
+.markdown-body :deep(ol) { list-style-type: decimal; }
+.markdown-body :deep(li) { margin-bottom: 0.5rem; }
+.markdown-body :deep(a:not(.citation-link)) {
+  color: theme('colors.blue.700');
+  text-decoration: none;
+}
+.markdown-body :deep(a:not(.citation-link):hover) {
+  text-decoration: underline;
+}
+.markdown-body :deep(strong) {
+  font-weight: 700;
+  color: theme('colors.slate.900');
+}
+.markdown-body :deep(blockquote) {
+  border-left: 4px solid theme('colors.slate.200');
+  padding-left: 1rem;
+  color: theme('colors.slate.600');
+  font-style: italic;
+  margin-bottom: 1.25rem;
+}
+.markdown-body :deep(code) {
+  font-family: theme('fontFamily.mono');
+  font-size: 0.875em;
+  background-color: theme('colors.slate.100');
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  color: theme('colors.pink.600');
+}
+.markdown-body :deep(pre) {
+  background-color: theme('colors.slate.50');
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid theme('colors.slate.200');
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+}
+.markdown-body :deep(pre code) {
+  background-color: transparent;
+  padding: 0;
+  color: theme('colors.slate.800');
 }
 
-:deep(.stitch-select .el-select__wrapper),
-:deep(.stitch-input .el-input__wrapper) {
-  background-color: #ffffff;
-  border-radius: 12px;
+/* Chat Input Reset */
+:deep(.stitch-chat-input .el-textarea__inner) {
+  background: transparent;
+  border: none;
   box-shadow: none !important;
-  border: 1px solid #c2c6d6;
+  font-size: 16px;
   padding: 8px 12px;
-  min-height: 44px;
-}
-:deep(.stitch-select .el-select__wrapper.is-focused),
-:deep(.stitch-input .el-input__wrapper.is-focus) {
-  border-color: #0058be;
-  box-shadow: 0 0 0 1px #0058be inset !important;
+  color: theme('colors.slate.800');
+  font-family: theme('fontFamily.sans');
+  line-height: 1.5;
 }
 
-.panel-footer {
-  margin-top: auto;
-  padding-top: 32px;
-  border-top: 1px solid rgba(194, 198, 214, 0.3);
-}
-
-.clear-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 16px;
-  background-color: #e6e8ea;
-  color: #191c1e;
-  font-weight: 700;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.clear-btn:hover {
-  background-color: #ffdad6;
-  color: #ba1a1a;
-  transform: scale(0.98);
-}
-
-/* Middle Chat Panel */
-.stitch-dialog-panel {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  background-color: #f7f9fb;
-}
-
-.chat-feed {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 40px;
-  padding-bottom: 160px;
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
-
-.message-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 85%;
-}
-
-.message-assistant {
-  align-self: flex-start;
-}
-
-.message-user {
-  align-self: flex-end;
-  align-items: flex-end;
-}
-
-.message-role {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.icon-bg {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background-color: rgba(0, 88, 190, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.icon-bg span {
-  font-size: 16px;
-  color: #0058be;
-}
-.message-role > span {
-  font-size: 12px;
-  font-weight: 600;
-  color: #424754;
-}
-
-.message-bubble {
-  padding: 16px;
-  border-radius: 16px;
-  font-size: 16px;
-  line-height: 1.6;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-
-.message-assistant .message-bubble {
-  background-color: #ffffff;
-  border: 1px solid rgba(194, 198, 214, 0.3);
-  border-top-left-radius: 0;
-  color: #191c1e;
-}
-
-.message-user .message-bubble {
-  background-color: #0058be;
-  color: #ffffff;
-  border-top-right-radius: 0;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.message-bubble.is-error {
-  background-color: #ffdad6;
-  border-color: #ba1a1a;
-  color: #93000a;
-}
-
-/* Input Area */
-.floating-input-area {
-  position: absolute;
-  bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 768px;
-  padding: 0 24px;
-}
-
-.glass-input-panel {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 24px;
-  padding: 12px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
-
-.icon-btn {
-  padding: 12px;
-  border-radius: 16px;
-  background: transparent;
-  border: none;
-  color: #424754;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 2px;
-}
-.icon-btn:hover {
-  background-color: #e6e8ea;
-}
-
-:deep(.stitch-textarea .el-textarea__inner) {
-  background: transparent;
-  border: none;
-  box-shadow: none !important;
-  font-size: 16px;
-  padding: 12px 0;
-  color: #191c1e;
-  font-family: 'Inter', sans-serif;
-}
-
-.send-btn {
-  background-color: #0058be;
-  color: #ffffff;
-  padding: 14px;
-  border-radius: 16px;
-  border: none;
-  box-shadow: 0 10px 15px -3px rgba(0, 88, 190, 0.3);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  flex-shrink: 0;
-  margin-bottom: 2px;
-}
-.send-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-}
-.send-btn:active:not(:disabled) {
-  transform: scale(0.95);
-}
-.send-btn:disabled {
-  background-color: #adc6ff;
-  box-shadow: none;
-  cursor: not-allowed;
-}
-
-.disclaimer {
-  text-align: center;
-  font-size: 11px;
-  color: rgba(66, 71, 84, 0.6);
-  margin-top: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-/* Right Panel */
-.stitch-reference-panel {
-  width: 380px;
-  border-left: 1px solid rgba(194, 198, 214, 0.3);
-  display: flex;
-  flex-direction: column;
-  padding: 32px 24px;
-  flex-shrink: 0;
-  overflow-y: auto;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.source-count {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-  background-color: #e6e8ea;
-  border-radius: 4px;
-  color: #424754;
-}
-
-.empty-citations {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #b7c8e1;
-  opacity: 0.5;
-}
-.empty-citations span {
-  font-size: 64px;
-  margin-bottom: 16px;
+:deep(.stitch-chat-input .el-textarea__inner::placeholder) {
+  color: theme('colors.slate.400');
 }
 </style>

@@ -38,12 +38,33 @@ knowledge:
     engine: ${SEARCH_ENGINE:mock}
     endpoint: ${OPENSEARCH_ENDPOINT:http://localhost:9200}
     index-prefix: ${SEARCH_INDEX_PREFIX:knowledge}
+    timeout: ${SEARCH_REQUEST_TIMEOUT:10s}
   vector-store:
     engine: ${VECTOR_STORE_ENGINE:mock}
     endpoint: ${MILVUS_ENDPOINT:http://localhost:19530}
+    token: ${MILVUS_TOKEN:root:Milvus}
     collection-prefix: ${VECTOR_COLLECTION_PREFIX:knowledge}
+    dimension: ${EMBEDDING_DIMENSION:16}
+    timeout: ${VECTOR_STORE_REQUEST_TIMEOUT:10s}
+    fail-fast: ${VECTOR_STORE_FAIL_FAST:false}
+  embedding:
+    provider: ${BACKEND_EMBEDDING_PROVIDER:${EMBEDDING_PROVIDER:mock}}
+  kafka:
+    enabled: ${KNOWLEDGE_KAFKA_ENABLED:true}
   ai-service:
     endpoint: ${AI_SERVICE_ENDPOINT:http://localhost:8001}
+    parse-path: ${AI_SERVICE_PARSE_PATH:/api/parse/document}
+    embedding-path: ${AI_SERVICE_EMBEDDING_PATH:/api/v1/embeddings}
+    embedding-model: ${AI_SERVICE_EMBEDDING_MODEL:mock-embedding-v1}
+    timeout: ${AI_SERVICE_TIMEOUT:60s}
+  tasks:
+    parse:
+      auto-run: ${PARSE_TASK_EXECUTOR_AUTO_RUN:false}
+      fixed-delay: ${PARSE_TASK_EXECUTOR_FIXED_DELAY:10s}
+      worker-id: ${PARSE_TASK_WORKER_ID:backend-local}
+    embedding:
+      auto-run: ${EMBEDDING_TASK_EXECUTOR_AUTO_RUN:false}
+      fixed-delay: ${EMBEDDING_TASK_EXECUTOR_FIXED_DELAY:10s}
 
 logging:
   level:

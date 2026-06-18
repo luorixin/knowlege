@@ -7,13 +7,18 @@ dependencies = [
     "fastapi>=0.128.0",
     "uvicorn[standard]>=0.38.0",
     "pydantic>=2.12.0",
-    "pypdf>=5.0.0"
+    "pydantic-settings>=2.4.0",
+    "pypdf>=5.0.0",
+    "httpx>=0.28.0"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "httpx>=0.28.0",
     "pytest>=8.0.0"
+]
+# Optional: only needed when running deploy/scripts/milvus-init.py against a real Milvus.
+deploy = [
+    "pymilvus>=2.4.0"
 ]
 
 [build-system]

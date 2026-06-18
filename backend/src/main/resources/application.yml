@@ -23,6 +23,20 @@ spring:
     multipart:
       max-file-size: ${BACKEND_MAX_FILE_SIZE:100MB}
       max-request-size: ${BACKEND_MAX_REQUEST_SIZE:100MB}
+  data:
+    redis:
+      # Binds the built-in redis auto-configuration (used by the `redis` health group) to the
+      # same REDIS_HOST/REDIS_PORT already wired by docker compose. Business caching is TODO.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:knowledge-backend-group}
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
 management:
   endpoints:
@@ -33,6 +47,22 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    # Health indicators are grouped so a failing optional dependency (e.g. OpenSearch/Milvus
+    # not started locally) only marks its own group, never the overall /actuator/health.
+    group:
+      db:
+        include: db
+      redis:
+        include: redis
+      storage:
+        include: storage
+      ai-service:
+        include: aiService
+      search:
+        include: search
+      vector:
+        include: vector
 
 knowledge:
   storage:
@@ -70,13 +100,50 @@ knowledge:
   redis:
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
+  # Keyword search engine. database = JPA like search, opensearch = OpenSearch REST client.
   search:
-    engine: ${SEARCH_ENGINE:opensearch}
+    engine: ${SEARCH_ENGINE:database}
     endpoint: ${OPENSEARCH_ENDPOINT:http://localhost:9200}
     index-prefix: ${SEARCH_INDEX_PREFIX:knowledge}
+    timeout: ${SEARCH_REQUEST_TIMEOUT:10s}
+  # Vector store engine. mock = in-database mock vector search, milvus = Milvus REST client.
   vector-store:
-    engine: ${VECTOR_STORE_ENGINE:milvus}
+    engine: ${VECTOR_STORE_ENGINE:mock}
     endpoint: ${MILVUS_ENDPOINT:http://localhost:19530}
+    token: ${MILVUS_TOKEN:root:Milvus}
     collection-prefix: ${VECTOR_COLLECTION_PREFIX:knowledge}
+    dimension: ${EMBEDDING_DIMENSION:16}
+    timeout: ${VECTOR_STORE_REQUEST_TIMEOUT:10s}
+    fail-fast: ${VECTOR_STORE_FAIL_FAST:false}
+  embedding:
+    provider: ${BACKEND_EMBEDDING_PROVIDER:${EMBEDDING_PROVIDER:mock}}
+  kafka:
+    enabled: ${KNOWLEDGE_KAFKA_ENABLED:true}
   ai-service:
     endpoint: ${AI_SERVICE_ENDPOINT:http://localhost:8001}
+    parse-path: ${AI_SERVICE_PARSE_PATH:/api/parse/document}
+    embedding-path: ${AI_SERVICE_EMBEDDING_PATH:/api/v1/embeddings}
+    embedding-model: ${AI_SERVICE_EMBEDDING_MODEL:mock-embedding-v1}
+    timeout: ${AI_SERVICE_TIMEOUT:60s}
+  # LLM provider. mock | openai-compatible | qwen | private-http. Real providers are TODO.
+  llm:
+    provider: ${LLM_PROVIDER:mock}
+    model-name: ${LLM_MODEL_NAME:mock-llm}
+    api-key: ${LLM_API_KEY:}
+    openai-compatible:
+      base-url: ${OPENAI_COMPATIBLE_BASE_URL:https://api.openai.com/v1}
+      timeout: ${OPENAI_COMPATIBLE_TIMEOUT:60s}
+    qwen:
+      base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com}
+      timeout: ${QWEN_TIMEOUT:60s}
+    private-http:
+      base-url: ${PRIVATE_HTTP_LLM_BASE_URL:http://localhost:8000}
+      timeout: ${PRIVATE_HTTP_LLM_TIMEOUT:60s}
+  tasks:
+    parse:
+      auto-run: ${PARSE_TASK_EXECUTOR_AUTO_RUN:false}
+      fixed-delay: ${PARSE_TASK_EXECUTOR_FIXED_DELAY:10s}
+      worker-id: ${PARSE_TASK_WORKER_ID:backend-local}
+    embedding:
+      auto-run: ${EMBEDDING_TASK_EXECUTOR_AUTO_RUN:false}
+      fixed-delay: ${EMBEDDING_TASK_EXECUTOR_FIXED_DELAY:10s}

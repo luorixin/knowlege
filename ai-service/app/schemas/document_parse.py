@@ -2,14 +2,29 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class DocumentParseRequest(BaseModel):
-    doc_id: str = Field(min_length=1)
-    version_id: str = Field(min_length=1)
-    file_path: str = Field(min_length=1)
-    file_type: str = Field(min_length=1)
+    model_config = ConfigDict(populate_by_name=True)
+
+    doc_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("doc_id", "document_id", "documentId"),
+    )
+    version_id: str = Field(
+        default="1",
+        min_length=1,
+        validation_alias=AliasChoices("version_id", "versionId"),
+    )
+    file_path: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("file_path", "storage_uri", "filePath", "storageUri"),
+    )
+    file_type: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("file_type", "fileType"),
+    )
 
 
 class ParsedPage(BaseModel):

@@ -19,7 +19,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
     selectedSpace: (state) => state.spaces.find((item) => item.id === state.selectedSpaceId) || null,
   },
   actions: {
-    async fetchSpaces(tenantId: number) {
+    async fetchSpaces(tenantId: EntityId) {
       this.loading = true
       try {
         this.spaces = await listKnowledgeSpaces(tenantId)
@@ -31,7 +31,7 @@ export const useKnowledgeStore = defineStore('knowledge', {
         this.loading = false
       }
     },
-    async ensureSpaces(tenantId: number) {
+    async ensureSpaces(tenantId: EntityId) {
       if (this.spaces.length === 0) {
         await this.fetchSpaces(tenantId)
       }

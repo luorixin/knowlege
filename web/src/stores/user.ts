@@ -3,8 +3,8 @@ import { defineStore } from 'pinia'
 const STORAGE_KEY = 'knowledge-user'
 
 export interface MockUser {
-  userId: number
-  tenantId: number
+  userId: string
+  tenantId: string
   username?: string
   displayName: string
   role: string
@@ -20,6 +20,7 @@ export const useUserStore = defineStore('user', {
   }),
   getters: {
     isLoggedIn: (state) => state.currentUser !== null,
+    isAdmin: (state) => state.currentUser?.role === 'ADMIN' || state.currentUser?.role === 'KNOWLEDGE_ADMIN',
     userId: (state) => state.currentUser?.userId,
     tenantId: (state) => state.currentUser?.tenantId,
   },

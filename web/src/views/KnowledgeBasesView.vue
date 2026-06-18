@@ -1,13 +1,13 @@
 <template>
   <section class="page-section">
     <div class="section-header">
-      <div>
-        <h2>知识库列表</h2>
-        <p>当前租户：{{ userStore.tenantId }}</p>
+      <div class="flex flex-col">
+        <h2 class="text-2xl font-bold text-slate-900 m-0 mb-1 tracking-tight">知识库列表</h2>
+        <p class="text-sm text-slate-600 m-0">当前租户：{{ userStore.tenantId }}</p>
       </div>
       <div class="toolbar-actions">
-        <el-button :icon="Refresh" :loading="knowledgeStore.loading" @click="refresh">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="dialogVisible = true">新建知识库</el-button>
+        <el-button plain :icon="Refresh" :loading="knowledgeStore.loading" @click="refresh">刷新</el-button>
+        <el-button type="primary" :icon="Plus" @click="dialogVisible = true" class="stitch-btn">新建知识库</el-button>
       </div>
     </div>
 
@@ -19,35 +19,37 @@
       :closable="false"
     />
 
-    <el-table
-      v-loading="knowledgeStore.loading"
-      :data="knowledgeStore.spaces"
-      border
-      row-key="id"
-      empty-text="暂无知识库"
-    >
-      <el-table-column prop="name" label="知识库" min-width="220" />
-      <el-table-column prop="description" label="说明" min-width="260" show-overflow-tooltip />
-      <el-table-column prop="visibility" label="可见性" width="120">
-        <template #default="{ row }">
-          <el-tag effect="plain">{{ row.visibility || 'PRIVATE' }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="110">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="plain">
-            {{ row.status }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="210" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="openDetail(row.id)">详情</el-button>
-          <el-button link @click="selectAndChat(row.id)">问答</el-button>
-          <el-button link @click="selectAndUpload(row.id)">上传</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="stitch-card stitch-card-table">
+      <el-table
+        v-loading="knowledgeStore.loading"
+        :data="knowledgeStore.spaces"
+        row-key="id"
+        empty-text="暂无知识库"
+        class="stitch-table"
+      >
+        <el-table-column prop="name" label="知识库" min-width="220" />
+        <el-table-column prop="description" label="说明" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="visibility" label="可见性" width="120">
+          <template #default="{ row }">
+            <el-tag effect="plain" class="stitch-tag">{{ row.visibility || 'PRIVATE' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="plain" class="stitch-tag">
+              {{ row.status }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="210" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openDetail(row.id)">详情</el-button>
+            <el-button link type="primary" @click="selectAndChat(row.id)">问答</el-button>
+            <el-button link type="primary" @click="selectAndUpload(row.id)">上传</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-dialog v-model="dialogVisible" title="新建知识库" width="520px">
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
@@ -65,8 +67,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="creating" @click="createSpace">创建</el-button>
+        <el-button @click="dialogVisible = false" plain>取消</el-button>
+        <el-button type="primary" :loading="creating" @click="createSpace" class="stitch-btn">创建</el-button>
       </template>
     </el-dialog>
   </section>

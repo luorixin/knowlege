@@ -19,6 +19,8 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
 
     List<KbDocumentChunk> findByVersionIdOrderByChunkIndex(Long versionId);
 
+    List<KbDocumentChunk> findByDocId(Long docId);
+
     @Query("""
             select chunk from KbDocumentChunk chunk
             join KbDocument document on document.id = chunk.docId
@@ -28,10 +30,10 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
               and document.tenantId = :tenantId
               and document.spaceId = :spaceId
               and document.status <> :deletedDocumentStatus
-              and (:docType is null or lower(document.docType) = :docType)
-              and (:industry is null or lower(document.industry) = :industry)
-              and (:serviceLine is null or lower(document.serviceLine) = :serviceLine)
-              and (:createdFrom is null or document.createdAt is null or document.createdAt >= :createdFrom)
+              and (cast(:docType as string) is null or lower(document.docType) = :docType)
+              and (cast(:industry as string) is null or lower(document.industry) = :industry)
+              and (cast(:serviceLine as string) is null or lower(document.serviceLine) = :serviceLine)
+              and (cast(:createdFrom as timestamp) is null or document.createdAt is null or document.createdAt >= :createdFrom)
               and (
                     :term1 is not null and lower(chunk.content) like lower(concat('%', :term1, '%'))
                  or :term2 is not null and lower(chunk.content) like lower(concat('%', :term2, '%'))
@@ -146,10 +148,10 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
               and document.tenantId = :tenantId
               and document.spaceId = :spaceId
               and document.status <> :deletedDocumentStatus
-              and (:docType is null or lower(document.docType) = :docType)
-              and (:industry is null or lower(document.industry) = :industry)
-              and (:serviceLine is null or lower(document.serviceLine) = :serviceLine)
-              and (:createdFrom is null or document.createdAt is null or document.createdAt >= :createdFrom)
+              and (cast(:docType as string) is null or lower(document.docType) = :docType)
+              and (cast(:industry as string) is null or lower(document.industry) = :industry)
+              and (cast(:serviceLine as string) is null or lower(document.serviceLine) = :serviceLine)
+              and (cast(:createdFrom as timestamp) is null or document.createdAt is null or document.createdAt >= :createdFrom)
               and (
                     :spaceOwner = true
                  or (

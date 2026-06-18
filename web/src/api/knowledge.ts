@@ -1,7 +1,7 @@
 import { http, unwrapResponse } from './http'
-import type { CreateKnowledgeSpacePayload, KnowledgeSpace } from './types'
+import type { EntityId, CreateKnowledgeSpacePayload, KnowledgeSpace } from './types'
 
-export async function listKnowledgeSpaces(tenantId: number): Promise<KnowledgeSpace[]> {
+export async function listKnowledgeSpaces(tenantId: EntityId): Promise<KnowledgeSpace[]> {
   return unwrapResponse(await http.get('/api/v1/kb-spaces', { params: { tenantId } }))
 }
 

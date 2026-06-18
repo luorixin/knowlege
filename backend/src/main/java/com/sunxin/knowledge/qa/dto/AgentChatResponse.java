@@ -10,6 +10,9 @@ public record AgentChatResponse(
 
         String answer,
 
-        List<AgentCitationResponse> citations
+        List<AgentCitationResponse> citations,
+
+        @JsonProperty("debug_info")
+        java.util.Map<String, Object> debugInfo
 ) {
 }

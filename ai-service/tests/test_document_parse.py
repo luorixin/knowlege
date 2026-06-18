@@ -38,6 +38,27 @@ def test_parse_txt_document(tmp_path: Path) -> None:
     ]
 
 
+def test_parse_document_accepts_pipeline_style_aliases(tmp_path: Path) -> None:
+    file_path = tmp_path / "legacy-payload.txt"
+    file_path.write_text("Legacy payload fields", encoding="utf-8")
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/parse/document",
+        json={
+            "document_id": "doc-legacy",
+            "storage_uri": str(file_path),
+            "file_type": "txt",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["doc_id"] == "doc-legacy"
+    assert payload["version_id"] == "1"
+    assert payload["pages"][0]["content"] == "Legacy payload fields"
+
+
 def test_parse_markdown_uses_first_heading_as_section_title(tmp_path: Path) -> None:
     file_path = tmp_path / "proposal.md"
     file_path.write_text("# Proposal Overview\n\nBody text", encoding="utf-8")
@@ -231,6 +252,46 @@ def test_parse_rejects_unsupported_file_type(tmp_path: Path) -> None:
 
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "UNSUPPORTED_FILE_TYPE"
+
+
+def test_parse_empty_document(tmp_path: Path) -> None:
+    file_path = tmp_path / "empty.txt"
+    file_path.write_text("", encoding="utf-8")
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/parse/document",
+        json={
+            "doc_id": "doc-empty",
+            "version_id": "v1",
+            "file_path": str(file_path),
+            "file_type": "txt",
+        },
+    )
+
+    assert response.status_code == 200
+    pages = response.json()["pages"]
+    assert len(pages) == 1
+    assert pages[0]["content"] == ""
+
+
+def test_parse_corrupt_document(tmp_path: Path) -> None:
+    file_path = tmp_path / "corrupt.docx"
+    file_path.write_text("not a zip file", encoding="utf-8")
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/parse/document",
+        json={
+            "doc_id": "doc-corrupt",
+            "version_id": "v1",
+            "file_path": str(file_path),
+            "file_type": "docx",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "PARSE_FAILED"
 
 
 def _write_zip(path: Path, files: dict[str, str]) -> None:

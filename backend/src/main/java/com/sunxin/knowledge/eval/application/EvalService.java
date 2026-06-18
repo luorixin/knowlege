@@ -113,6 +113,24 @@ public class EvalService {
         return EvalDatasetResponse.fromEntity(datasetRepository.save(dataset));
     }
 
+    @Transactional(readOnly = true)
+    public List<EvalDatasetResponse> listDatasets(CurrentUser user) {
+        return datasetRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(user.tenantId(), ACTIVE)
+                .stream()
+                .map(EvalDatasetResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<EvalCaseResponse> listCases(Long datasetId, CurrentUser user) {
+        KbEvalDataset dataset = requireDataset(datasetId);
+        validateTenant(user, dataset.getTenantId(), dataset.getTenantId());
+        return caseRepository.findByDatasetIdAndStatusOrderByCreatedAtAsc(datasetId, ACTIVE)
+                .stream()
+                .map(c -> EvalCaseResponse.fromEntity(c, spec(c)))
+                .toList();
+    }
+
     @Transactional
     public EvalCaseResponse createCase(EvalCaseCreateRequest request, CurrentUser user) {
         KbEvalDataset dataset = requireDataset(request.datasetId());

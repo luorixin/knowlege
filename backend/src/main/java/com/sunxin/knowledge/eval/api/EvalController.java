@@ -43,6 +43,25 @@ public class EvalController {
         return ApiResponse.ok(evalService.createDataset(request, currentUser));
     }
 
+    @GetMapping("/api/eval/dataset")
+    public ApiResponse<java.util.List<EvalDatasetResponse>> listDatasets(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId
+    ) {
+        CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId);
+        return ApiResponse.ok(evalService.listDatasets(currentUser));
+    }
+
+    @GetMapping("/api/eval/dataset/{datasetId}/cases")
+    public ApiResponse<java.util.List<EvalCaseResponse>> listCases(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
+            @PathVariable Long datasetId
+    ) {
+        CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId);
+        return ApiResponse.ok(evalService.listCases(datasetId, currentUser));
+    }
+
     @PostMapping("/api/eval/case")
     public ApiResponse<EvalCaseResponse> createCase(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,

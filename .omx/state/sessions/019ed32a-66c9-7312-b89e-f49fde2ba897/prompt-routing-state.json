@@ -2,11 +2,11 @@
   "version": 1,
   "last_triage": {
     "lane": "LIGHT",
-    "destination": "researcher",
-    "reason": "external_reference_research",
-    "prompt_signature": "sha256:f0cf2dc9832d952ad519ccf0005d941f7ce32ce96042bbe5886c2ac45c38641e",
-    "turn_id": "019ed39b-227c-7f90-882e-a614dea591e4",
-    "created_at": "2026-06-17T03:23:40.140Z"
+    "destination": "explore",
+    "reason": "local_reference_lookup",
+    "prompt_signature": "sha256:95e29d3b8de4597def9dd47fbbddefd96edfa1033eec164b355aa8b4335e21d3",
+    "turn_id": "019ed9f3-3a3c-7d80-9c6b-5e8dba1b58cb",
+    "created_at": "2026-06-18T08:57:44.472Z"
   },
   "suppress_followup": true
 }

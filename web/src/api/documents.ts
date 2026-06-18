@@ -32,6 +32,18 @@ export async function getDocumentParseStatus(documentId: EntityId): Promise<Docu
   return unwrapResponse(await http.get(`/api/v1/documents/${documentId}/parse-status`))
 }
 
+export async function rebuildDocumentChunks(documentId: EntityId, payload: any = {}): Promise<any> {
+  return unwrapResponse(await http.post(`/api/v1/documents/${documentId}/chunks/rebuild`, payload))
+}
+
+export async function getDocumentChunks(documentId: EntityId): Promise<any[]> {
+  try {
+    return await unwrapResponse(await http.get(`/api/v1/documents/${documentId}/chunks`))
+  } catch (err) {
+    return []
+  }
+}
+
 export async function uploadDocument(payload: UploadDocumentPayload): Promise<DocumentUploadResult> {
   const formData = new FormData()
   formData.append('file', payload.file)

@@ -10,6 +10,7 @@ export interface ChatMessage {
   citations: AgentCitation[]
   createdAt: string
   error?: boolean
+  debugInfo?: any
 }
 
 interface ChatState {
@@ -55,6 +56,7 @@ export const useChatStore = defineStore('chat', {
           content: result.answer,
           citations: result.citations || [],
           createdAt: new Date().toISOString(),
+          debugInfo: result.debug_info,
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : '问答请求失败'

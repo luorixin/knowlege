@@ -29,6 +29,37 @@ Health check:
 curl http://localhost:8001/api/v1/health
 ```
 
+## Provider Configuration
+
+The service runs offline by default with mock providers. To call real model
+services, copy `.env.example` to `.env` and switch the provider names:
+
+```bash
+EMBEDDING_PROVIDER=openai-compatible
+EMBEDDING_MODEL_NAME=text-embedding-v3
+EMBEDDING_DIMENSION=1024
+AI_EMBEDDING_ENDPOINT=https://api.example.com/v1
+EMBEDDING_API_KEY=change-me
+
+LLM_PROVIDER=openai-compatible
+LLM_MODEL_NAME=qwen-plus
+AI_LLM_ENDPOINT=https://api.example.com/v1
+LLM_API_KEY=change-me
+LLM_TEMPERATURE=0
+LLM_MAX_TOKENS=2048
+
+RERANK_PROVIDER=private-http
+RERANK_MODEL_NAME=bge-reranker
+AI_RERANK_ENDPOINT=http://localhost:8002/api/v1/rerank
+RERANK_API_KEY=change-me
+```
+
+Provider protocol:
+
+- Embedding: `POST {AI_EMBEDDING_ENDPOINT}/embeddings` with `model`, `input`, and optional `dimensions`.
+- LLM: `POST {AI_LLM_ENDPOINT}/chat/completions` with `model`, `messages`, `temperature`, and `max_completion_tokens`.
+- Rerank: `POST {AI_RERANK_ENDPOINT}` with `query`, `documents`, `model`, and `top_k`.
+
 ## Parse Document
 
 Endpoint:

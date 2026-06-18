@@ -3,6 +3,8 @@ package com.sunxin.knowledge.document;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -11,12 +13,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
@@ -24,9 +28,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.jayway.jsonpath.JsonPath;
+import com.sunxin.knowledge.integration.ai.AiPipelineClient;
+import com.sunxin.knowledge.integration.ai.AiServiceException;
+import com.sunxin.knowledge.integration.ai.DocumentParseResponse;
+import com.sunxin.knowledge.integration.ai.ParsedPage;
+import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentVersionRepository;
+import com.sunxin.knowledge.persistence.repository.KbEmbeddingIndexTaskRepository;
 import com.sunxin.knowledge.persistence.repository.KbSpaceRepository;
 
 @ActiveProfiles("test")
@@ -49,8 +59,19 @@ class DocumentIngestionApiTest {
     @Autowired
     private KbDocumentParseTaskRepository parseTaskRepository;
 
+    @Autowired
+    private KbDocumentChunkRepository chunkRepository;
+
+    @Autowired
+    private KbEmbeddingIndexTaskRepository embeddingIndexTaskRepository;
+
+    @MockBean
+    private AiPipelineClient aiPipelineClient;
+
     @BeforeEach
     void cleanDatabase() {
+        embeddingIndexTaskRepository.deleteAll();
+        chunkRepository.deleteAll();
         parseTaskRepository.deleteAll();
         documentVersionRepository.deleteAll();
         documentRepository.deleteAll();
@@ -188,6 +209,113 @@ class DocumentIngestionApiTest {
                 .andExpect(jsonPath("$.data", empty()));
     }
 
+    @Test
+    void runsPendingParseTaskThroughAiServiceAndCreatesChunksAndEmbeddingTasks() throws Exception {
+        Long spaceId = createSpace();
+        MvcResult upload = mockMvc.perform(multipart("/api/v1/kb-spaces/{spaceId}/documents", spaceId)
+                        .file(new MockMultipartFile(
+                                "file",
+                                "parse-me.txt",
+                                MediaType.TEXT_PLAIN_VALUE,
+                                "raw document".getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long taskId = readLong(upload, "$.data.parseTaskId");
+
+        MvcResult initialTasks = mockMvc.perform(get("/api/v1/tasks/center")
+                        .param("spaceId", String.valueOf(spaceId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].task_key").value("parse-" + taskId))
+                .andExpect(jsonPath("$.data[0].task_category").value("PARSE_CHUNK"))
+                .andExpect(jsonPath("$.data[0].task_type").value("PARSE_AND_CHUNK"))
+                .andExpect(jsonPath("$.data[0].stage_label").value("文档解析 / 内容切片"))
+                .andExpect(jsonPath("$.data[0].runnable").value(true))
+                .andReturn();
+        assertThat(readStringList(initialTasks, "$.data[*].document_title")).contains("parse-me.txt");
+
+        when(aiPipelineClient.parseDocument(any())).thenReturn(new DocumentParseResponse(
+                "doc",
+                "version",
+                java.util.List.of(new ParsedPage(
+                        1,
+                        "项目背景",
+                        "text",
+                        "解析后的项目背景内容，包含金融行业数据治理案例。",
+                        java.util.Map.of("parser", "mock-test")
+                ))
+        ));
+
+        mockMvc.perform(post("/api/v1/tasks/center/{taskKey}/run", "parse-" + taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.progress_percent").value(100))
+                .andExpect(jsonPath("$.data.task_category").value("PARSE_CHUNK"));
+
+        assertThat(chunkRepository.count()).isEqualTo(1);
+        assertThat(embeddingIndexTaskRepository.count()).isEqualTo(1);
+
+        Long embeddingTaskId = embeddingIndexTaskRepository.findAll().getFirst().getId();
+        mockMvc.perform(get("/api/v1/tasks/embedding")
+                        .param("spaceId", String.valueOf(spaceId))
+                        .param("status", "PENDING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].chunk_id").isString());
+
+        MvcResult unifiedTasks = mockMvc.perform(get("/api/v1/tasks/center")
+                        .param("spaceId", String.valueOf(spaceId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andReturn();
+        assertThat(readStringList(unifiedTasks, "$.data[*].task_category"))
+                .contains("PARSE_CHUNK", "EMBEDDING_INDEX");
+        assertThat(readStringList(unifiedTasks, "$.data[*].task_type"))
+                .contains("PARSE_AND_CHUNK", "EMBEDDING_AND_INDEX");
+
+        mockMvc.perform(post("/api/v1/tasks/embedding/{taskId}/run", embeddingTaskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.progress_percent").value(100))
+                .andExpect(jsonPath("$.data.embedding_dimension").value(16))
+                .andExpect(jsonPath("$.data.model_provider").value("mock"))
+                .andExpect(jsonPath("$.data.model_name").value("mock-embedding-v1"));
+
+        Long documentId = readLong(upload, "$.data.documentId");
+        mockMvc.perform(get("/api/v1/documents/{documentId}/parse-status", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.parseStatus").value("COMPLETED"));
+    }
+
+    @Test
+    void failedParseTaskCanBeRetried() throws Exception {
+        Long spaceId = createSpace();
+        MvcResult upload = mockMvc.perform(multipart("/api/v1/kb-spaces/{spaceId}/documents", spaceId)
+                        .file(new MockMultipartFile(
+                                "file",
+                                "fail-me.txt",
+                                MediaType.TEXT_PLAIN_VALUE,
+                                "raw document".getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long taskId = readLong(upload, "$.data.parseTaskId");
+
+        when(aiPipelineClient.parseDocument(any()))
+                .thenThrow(new AiServiceException("AI service unavailable", new RuntimeException("down")));
+
+        mockMvc.perform(post("/api/v1/tasks/{taskId}/run", taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.error_code").value("AiServiceException"));
+
+        mockMvc.perform(post("/api/v1/tasks/center/{taskKey}/retry", "parse-" + taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.retry_count").value(1))
+                .andExpect(jsonPath("$.data.error_code").doesNotExist());
+    }
+
     private Long createSpace() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/kb-spaces")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -206,5 +334,9 @@ class DocumentIngestionApiTest {
     private static Long readLong(MvcResult result, String path) throws Exception {
         String value = JsonPath.read(result.getResponse().getContentAsString(), path);
         return Long.valueOf(value);
+    }
+
+    private static List<String> readStringList(MvcResult result, String path) throws Exception {
+        return JsonPath.read(result.getResponse().getContentAsString(), path);
     }
 }

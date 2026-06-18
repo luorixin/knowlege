@@ -8,5 +8,7 @@ import com.sunxin.knowledge.persistence.entity.KbPermissionPolicy;
 
 public interface KbPermissionPolicyRepository extends JpaRepository<KbPermissionPolicy, Long> {
 
+    List<KbPermissionPolicy> findByTenantIdAndSpaceId(Long tenantId, Long spaceId);
+
     List<KbPermissionPolicy> findByTenantIdAndStatus(Long tenantId, String status);
 }

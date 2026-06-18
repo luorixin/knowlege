@@ -8,4 +8,7 @@ public record LlmResponse(
         Integer completionTokens,
         Long latencyMs
 ) {
+    public LlmResponse(String answer) {
+        this(answer, "system", "none", 0, 0, 0L);
+    }
 }

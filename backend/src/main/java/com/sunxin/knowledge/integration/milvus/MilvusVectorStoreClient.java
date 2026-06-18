@@ -1,0 +1,141 @@
+package com.sunxin.knowledge.integration.milvus;
+
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+import com.sunxin.knowledge.integration.vector.VectorRecord;
+import com.sunxin.knowledge.integration.vector.VectorStoreClient;
+
+@Component
+@Primary
+@ConditionalOnProperty(prefix = "knowledge.vector-store", name = "engine", havingValue = "milvus")
+@EnableConfigurationProperties(MilvusProperties.class)
+public class MilvusVectorStoreClient implements VectorStoreClient {
+
+    private final RestClient restClient;
+    private final MilvusProperties properties;
+
+    public MilvusVectorStoreClient(MilvusProperties properties) {
+        this.properties = properties;
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory();
+        Duration timeout = properties.getTimeout();
+        requestFactory.setReadTimeout(timeout);
+        this.restClient = RestClient.builder()
+                .baseUrl(trimTrailingSlash(properties.getEndpoint()))
+                .requestFactory(requestFactory)
+                .defaultHeader("Authorization", "Bearer " + properties.getToken())
+                .defaultHeader("Request-Timeout", String.valueOf(Math.max(1, timeout.toSeconds())))
+                .build();
+    }
+
+    @Override
+    public String storeName() {
+        return "milvus";
+    }
+
+    @Override
+    public void upsert(VectorRecord record) {
+        String collectionName = properties.collectionName(record.collectionName());
+        ensureCollection(collectionName, record.embedding().size());
+        try {
+            restClient.post()
+                    .uri("/v2/vectordb/entities/insert")
+                    .body(Map.of(
+                            "collectionName", collectionName,
+                            "data", List.of(toMilvusRow(record))
+                    ))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientException ex) {
+            if (properties.isFailFast()) {
+                throw ex;
+            }
+        }
+    }
+
+    private void ensureCollection(String collectionName, int dimension) {
+        try {
+            restClient.post()
+                    .uri("/v2/vectordb/collections/create")
+                    .body(collectionDefinition(collectionName, dimension))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientException ex) {
+            String message = ex.getMessage();
+            if (properties.isFailFast()
+                    || message == null
+                    || !(message.contains("already") || message.contains("exist"))) {
+                if (properties.isFailFast()) {
+                    throw ex;
+                }
+            }
+        }
+    }
+
+    private static Map<String, Object> collectionDefinition(String collectionName, int dimension) {
+        return Map.of(
+                "collectionName", collectionName,
+                "schema", Map.of(
+                        "autoID", false,
+                        "enableDynamicField", true,
+                        "fields", List.of(
+                                Map.of(
+                                        "fieldName", "id",
+                                        "dataType", "Int64",
+                                        "isPrimary", true,
+                                        "autoID", false
+                                ),
+                                Map.of(
+                                        "fieldName", "vector",
+                                        "dataType", "FloatVector",
+                                        "elementTypeParams", Map.of("dim", dimension)
+                                )
+                        )
+                ),
+                "indexParams", List.of(Map.of(
+                        "fieldName", "vector",
+                        "indexName", "vector_idx",
+                        "metricType", "COSINE",
+                        "indexType", "AUTOINDEX"
+                ))
+        );
+    }
+
+    private static Map<String, Object> toMilvusRow(VectorRecord record) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", record.chunkId());
+        row.put("vector", record.embedding());
+        row.put("tenant_id", record.tenantId());
+        row.put("space_id", record.spaceId());
+        row.put("doc_id", record.docId());
+        row.put("version_id", record.versionId());
+        row.put("chunk_id", record.chunkId());
+        row.put("doc_title", record.docTitle());
+        row.put("doc_type", normalize(record.docType()));
+        row.put("industry", normalize(record.industry()));
+        row.put("service_line", normalize(record.serviceLine()));
+        row.put("metadata_json", record.metadataJson());
+        return row;
+    }
+
+    public static String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim().toLowerCase();
+    }
+
+    public static String trimTrailingSlash(String value) {
+        if (value == null || value.isBlank()) {
+            return "http://localhost:19530";
+        }
+        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+}

@@ -7,6 +7,7 @@ import EvalDatasetsView from '@/views/EvalDatasetsView.vue'
 import KnowledgeBaseDetailView from '@/views/KnowledgeBaseDetailView.vue'
 import KnowledgeBasesView from '@/views/KnowledgeBasesView.vue'
 import LoginView from '@/views/LoginView.vue'
+import PermissionsView from '@/views/PermissionsView.vue'
 import TasksView from '@/views/TasksView.vue'
 
 const router = createRouter({
@@ -57,6 +58,11 @@ const router = createRouter({
       path: '/tasks',
       name: 'tasks',
       component: TasksView,
+    },
+    {
+      path: '/permissions',
+      name: 'permissions',
+      component: PermissionsView,
     },
   ],
 })

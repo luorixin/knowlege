@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.27.0",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
@@ -11,13 +12,23 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "axios": "^1.13.2",
+    "dompurify": "^3.4.11",
     "element-plus": "^2.12.0",
+    "marked": "^18.0.5",
     "pinia": "^3.0.4",
     "vue": "^3.5.25",
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.1",
+    "@types/dompurify": "^3.2.0",
+    "@types/marked": "^6.0.0",
     "@vitejs/plugin-vue": "^6.0.2",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.15",
+    "sass": "^1.101.0",
+    "sass-embedded": "^1.100.0",
+    "tailwindcss": "^4.3.1",
     "typescript": "^5.9.3",
     "vite": "^8.0.10",
     "vue-tsc": "^3.1.8"

@@ -48,6 +48,7 @@ public class DocumentIngestionService {
     private final FileStorageService fileStorageService;
     private final IdGenerator idGenerator;
     private final AccessControlService accessControlService;
+    private final com.sunxin.knowledge.task.TaskEventProducer taskEventProducer;
 
     public DocumentIngestionService(
             KnowledgeSpaceApplicationService spaceService,
@@ -56,7 +57,8 @@ public class DocumentIngestionService {
             KbDocumentParseTaskRepository parseTaskRepository,
             FileStorageService fileStorageService,
             IdGenerator idGenerator,
-            AccessControlService accessControlService
+            AccessControlService accessControlService,
+            com.sunxin.knowledge.task.TaskEventProducer taskEventProducer
     ) {
         this.spaceService = spaceService;
         this.documentRepository = documentRepository;
@@ -65,6 +67,7 @@ public class DocumentIngestionService {
         this.fileStorageService = fileStorageService;
         this.idGenerator = idGenerator;
         this.accessControlService = accessControlService;
+        this.taskEventProducer = taskEventProducer;
     }
 
     @Transactional
@@ -220,6 +223,8 @@ public class DocumentIngestionService {
         parseTask.setCreatedBy(currentUser.userId());
         parseTask.setUpdatedBy(currentUser.userId());
         parseTaskRepository.save(parseTask);
+
+        taskEventProducer.sendParseTask(parseTask.getId());
 
         return toUploadResponse(document, version, parseTask, false);
     }

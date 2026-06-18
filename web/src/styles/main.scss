@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply m-0 text-slate-800 bg-slate-50 font-sans;
+  }
+}
+
+@layer components {
+  /* Layout */
+  .page-section {
+    @apply flex flex-col gap-5;
+  }
+
+  .section-header {
+    @apply flex items-center justify-between gap-4 mb-2;
+    
+    h2 {
+      @apply m-0 text-xl leading-snug font-bold text-slate-900;
+    }
+    p {
+      @apply m-0 mt-1 text-sm text-slate-500;
+    }
+  }
+
+  /* Toolbar */
+  .toolbar-actions,
+  .form-actions {
+    @apply flex items-center gap-3;
+  }
+
+  /* Panels & Cards */
+  .tool-panel,
+  .info-panel {
+    @apply bg-white border border-slate-200 rounded-xl p-5 shadow-sm;
+    
+    h3 {
+      @apply m-0 mb-4 text-lg font-bold text-slate-900;
+    }
+  }
+
+  /* Google Stitch Inspired Base Classes */
+  .stitch-card {
+    @apply bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 overflow-hidden transition-shadow hover:shadow-md;
+  }
+
+  .stitch-card-sm {
+    @apply p-4;
+  }
+
+  .stitch-card-table {
+    @apply pt-2 px-6 pb-6;
+  }
+
+  .stitch-btn {
+    @apply rounded-lg font-semibold px-5 py-2;
+  }
+
+  .stitch-tag {
+    @apply rounded-md font-medium;
+  }
+
+  /* Grids */
+  .detail-grid {
+    @apply grid gap-6;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    
+    @media (max-width: 1180px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .eval-grid {
+    @apply grid grid-cols-2 gap-4;
+    
+    @media (max-width: 1180px) {
+      @apply grid-cols-1;
+    }
+  }
+
+  .metric-strip {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+
+  .metric-item {
+    @apply flex flex-col gap-1.5 min-h-[78px] p-3.5 bg-white border border-slate-200 rounded-xl shadow-sm;
+    
+    span {
+      @apply text-[13px] text-slate-500 font-medium;
+    }
+    strong {
+      @apply text-2xl font-bold text-slate-900 leading-tight;
+    }
+  }
+
+  .form-row {
+    @apply grid grid-cols-3 gap-3.5;
+    
+    @media (max-width: 760px) {
+      @apply grid-cols-1;
+    }
+  }
+
+  /* Custom Element Plus Table Override (Stitch Style) */
+  :root {
+    --el-table-border-color: theme('colors.slate.200');
+    --el-table-header-bg-color: transparent;
+    --el-table-header-text-color: theme('colors.slate.700');
+    --el-table-text-color: theme('colors.slate.900');
+    --el-table-row-hover-bg-color: theme('colors.slate.50');
+  }
+
+  .el-table {
+    @apply border-none bg-transparent;
+    
+    &::before, &::after, &__inner-wrapper::before {
+      @apply hidden;
+    }
+    
+    th.el-table__cell {
+      @apply border-r-0 border-b-2 border-slate-200 font-semibold py-3 text-sm;
+    }
+    
+    td.el-table__cell {
+      @apply border-r-0 border-b border-slate-100 py-3;
+    }
+  }
+}

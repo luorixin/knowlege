@@ -8,5 +8,7 @@ import com.sunxin.knowledge.persistence.entity.KbRole;
 
 public interface KbRoleRepository extends JpaRepository<KbRole, Long> {
 
-    Optional<KbRole> findByTenantIdAndCodeAndStatus(Long tenantId, String code, String status);
+    Optional<KbRole> findByTenantIdAndIdAndStatus(Long tenantId, Long id, String status);
+
+    java.util.List<KbRole> findByTenantId(Long tenantId);
 }

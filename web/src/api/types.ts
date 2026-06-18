@@ -19,10 +19,10 @@ export interface KnowledgeSpace {
 }
 
 export interface CreateKnowledgeSpacePayload {
-  tenantId: number
+  tenantId: EntityId
   name: string
   description?: string
-  ownerUserId?: number
+  ownerUserId?: EntityId
   visibility?: string
 }
 
@@ -87,6 +87,37 @@ export interface DocumentParseStatus {
   updatedAt?: string
 }
 
+export interface TaskCenterItem {
+  task_key: string
+  task_id: EntityId
+  task_category: 'PARSE_CHUNK' | 'EMBEDDING_INDEX' | string
+  task_type: string
+  stage_label: string
+  tenant_id: EntityId
+  space_id: EntityId
+  doc_id?: EntityId
+  document_title?: string
+  version_id?: EntityId
+  chunk_id?: EntityId
+  status: string
+  retry_count?: number
+  progress_percent?: number
+  model_provider?: string
+  model_name?: string
+  embedding_dimension?: number
+  index_name?: string
+  vector_collection?: string
+  worker_id?: string
+  started_at?: string
+  finished_at?: string
+  error_code?: string
+  error_message?: string
+  created_at?: string
+  updated_at?: string
+  retryable: boolean
+  runnable: boolean
+}
+
 export interface SearchFilters {
   doc_type?: string
   industry?: string
@@ -95,11 +126,13 @@ export interface SearchFilters {
 }
 
 export interface AgentCitation {
-  citation_id: number
+  citation_id: EntityId
   doc_id: EntityId
   doc_title: string
   page_no?: number
   section_title?: string
+  chunk_content?: string
+  source_uri?: string
 }
 
 export interface AgentChatPayload {
@@ -113,6 +146,7 @@ export interface AgentChatResult {
   session_id: EntityId
   answer: string
   citations: AgentCitation[]
+  debug_info?: any
 }
 
 export interface EvalDataset {

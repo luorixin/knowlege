@@ -39,7 +39,8 @@ class RuleBasedRagEvaluatorTest {
         AgentChatResponse answer = new AgentChatResponse(
                 1L,
                 "根据资料可回答。[引用1]",
-                List.of(new AgentCitationResponse(1, 999L, "无权限文档", 3, "保密章节"))
+                List.of(new AgentCitationResponse(1, 999L, "无权限文档", 3, "保密章节", "Some content", "local://secret.pdf")),
+                null
         );
 
         EvalCaseReportResponse report = evaluator.evaluate(

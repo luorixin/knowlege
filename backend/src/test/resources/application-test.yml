@@ -15,7 +15,20 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  autoconfigure:
+    exclude:
+      # Tests run without a Redis instance; exclude redis auto-configuration so the
+      # `redis` health group is absent rather than reporting DOWN.
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  kafka:
+    listener:
+      auto-startup: false
 
 knowledge:
   storage:
     local-root: target/test-uploads
+  embedding:
+    provider: mock
+  kafka:
+    enabled: false
