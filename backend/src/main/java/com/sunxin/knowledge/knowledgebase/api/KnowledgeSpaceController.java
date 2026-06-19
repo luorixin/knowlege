@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.sunxin.knowledge.auth.CurrentUser;
 import com.sunxin.knowledge.auth.CurrentUserResolver;
 import com.sunxin.knowledge.common.api.ApiResponse;
+import com.sunxin.knowledge.common.dto.PageResponse;
 import com.sunxin.knowledge.knowledgebase.application.KnowledgeSpaceApplicationService;
 import com.sunxin.knowledge.knowledgebase.dto.CreateKnowledgeSpaceRequest;
 import com.sunxin.knowledge.knowledgebase.dto.KnowledgeSpaceResponse;
@@ -48,12 +49,14 @@ public class KnowledgeSpaceController {
     }
 
     @GetMapping
-    public ApiResponse<List<KnowledgeSpaceResponse>> list(
+    public ApiResponse<PageResponse<KnowledgeSpaceResponse>> list(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long currentTenantId,
-            @RequestParam @NotNull Long tenantId
+            @RequestParam @NotNull Long tenantId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
         CurrentUser currentUser = currentUserResolver.resolve(userId, currentTenantId, tenantId);
-        return ApiResponse.ok(spaceService.list(tenantId, currentUser));
+        return ApiResponse.ok(spaceService.list(tenantId, currentUser, page, size));
     }
 }

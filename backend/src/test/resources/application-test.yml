@@ -21,14 +21,19 @@ spring:
       # `redis` health group is absent rather than reporting DOWN.
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
   kafka:
     listener:
       auto-startup: false
 
 knowledge:
+  security:
+    enabled: false
   storage:
     local-root: target/test-uploads
   embedding:
+    provider: mock
+  llm:
     provider: mock
   kafka:
     enabled: false

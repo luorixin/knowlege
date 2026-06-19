@@ -73,16 +73,26 @@ export interface DocumentUploadResult {
   duplicated: boolean
 }
 
+export interface ParseMetadata {
+  parser?: string
+  page_count?: number
+  block_count?: number
+  error_count?: number
+  page_modes?: string[]
+  errors?: any[]
+}
+
 export interface DocumentParseStatus {
   documentId: EntityId
   versionId?: EntityId
   parseTaskId?: EntityId
   taskType?: string
-  status?: string
+  status?: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'PARTIAL_SUCCESS' | 'FAILED' | string
   progressPercent?: number
   parseStatus?: string
   errorCode?: string
   errorMessage?: string
+  metadata?: ParseMetadata
   createdAt?: string
   updatedAt?: string
 }
@@ -99,7 +109,7 @@ export interface TaskCenterItem {
   document_title?: string
   version_id?: EntityId
   chunk_id?: EntityId
-  status: string
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'PARTIAL_SUCCESS' | 'FAILED' | string
   retry_count?: number
   progress_percent?: number
   model_provider?: string
@@ -112,6 +122,7 @@ export interface TaskCenterItem {
   finished_at?: string
   error_code?: string
   error_message?: string
+  metadata?: ParseMetadata
   created_at?: string
   updated_at?: string
   retryable: boolean

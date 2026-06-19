@@ -7,8 +7,10 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import com.sunxin.knowledge.auth.AccessControlService;
 import com.sunxin.knowledge.auth.CurrentUser;
@@ -28,6 +30,7 @@ import com.sunxin.knowledge.qa.dto.AgentChatResponse;
 import com.sunxin.knowledge.qa.dto.AgentCitationResponse;
 import com.sunxin.knowledge.qa.dto.AgentSessionDto;
 import com.sunxin.knowledge.qa.dto.AgentMessageDto;
+import com.sunxin.knowledge.common.dto.PageResponse;
 import com.sunxin.knowledge.qa.llm.LlmProvider;
 import com.sunxin.knowledge.qa.llm.LlmRequest;
 import com.sunxin.knowledge.qa.llm.LlmResponse;
@@ -63,6 +66,7 @@ public class AgentService {
     private final LlmProvider llmProvider;
     private final AgentConversationRecorder conversationRecorder;
     private final AccessControlService accessControlService;
+    private final org.springframework.core.task.TaskExecutor taskExecutor;
 
     public AgentService(
             KbSpaceRepository spaceRepository,
@@ -74,7 +78,9 @@ public class AgentService {
             ContextBuilderService contextBuilderService,
             LlmProvider llmProvider,
             AgentConversationRecorder conversationRecorder,
-            AccessControlService accessControlService
+            AccessControlService accessControlService,
+            @Qualifier("applicationTaskExecutor")
+            org.springframework.core.task.TaskExecutor taskExecutor
     ) {
         this.spaceRepository = spaceRepository;
         this.documentRepository = documentRepository;
@@ -86,42 +92,59 @@ public class AgentService {
         this.llmProvider = llmProvider;
         this.conversationRecorder = conversationRecorder;
         this.accessControlService = accessControlService;
+        this.taskExecutor = taskExecutor;
     }
 
     @Transactional(readOnly = true)
-    public List<AgentSessionDto> listSessions(Long spaceId, CurrentUser user) {
+    public PageResponse<AgentSessionDto> listSessions(Long spaceId, CurrentUser user, int page, int size) {
         KbSpace space = requireSpace(spaceId);
         CurrentUser resolvedUser = resolveUser(user, space);
         accessControlService.requireSpacePermission(space, resolvedUser, PermissionAction.AGENT_CHAT);
 
-        List<KbQuerySession> sessions = conversationRecorder.listSessions(space, resolvedUser);
-        return sessions.stream()
-                .map(s -> new AgentSessionDto(
-                        s.getId(),
-                        s.getSpaceId(),
-                        s.getTitle(),
-                        s.getStatus(),
-                        s.getCreatedAt()
-                ))
-                .toList();
+        Page<KbQuerySession> sessions = conversationRecorder.listSessions(space, resolvedUser, page, size);
+        return new PageResponse<>(
+                sessions.getContent().stream()
+                        .map(s -> new AgentSessionDto(
+                                s.getId(),
+                                s.getSpaceId(),
+                                s.getTitle(),
+                                s.getStatus(),
+                                s.getCreatedAt()
+                        ))
+                        .toList(),
+                sessions.getNumber(),
+                sessions.getSize(),
+                sessions.getTotalElements(),
+                sessions.getTotalPages()
+        );
     }
 
     @Transactional(readOnly = true)
-    public List<AgentMessageDto> getSessionMessages(Long spaceId, Long sessionId, CurrentUser user) {
+    public PageResponse<AgentMessageDto> getSessionMessages(Long spaceId, Long sessionId, CurrentUser user, int page, int size) {
         KbSpace space = requireSpace(spaceId);
         CurrentUser resolvedUser = resolveUser(user, space);
         accessControlService.requireSpacePermission(space, resolvedUser, PermissionAction.AGENT_CHAT);
 
-        return conversationRecorder.getSessionMessages(sessionId, space, resolvedUser).stream()
-                .map(m -> new AgentMessageDto(
-                        m.getId(),
-                        m.getRole(),
-                        m.getContent(),
-                        m.getCreatedAt(),
-                        conversationRecorder.getMessageCitations(m.getId()),
-                        "ERROR".equalsIgnoreCase(m.getStatus())
-                ))
-                .toList();
+        Page<KbQueryMessage> messages = conversationRecorder.getSessionMessages(sessionId, space, resolvedUser, page, size);
+        List<Long> messageIds = messages.getContent().stream().map(com.sunxin.knowledge.persistence.entity.KbQueryMessage::getId).toList();
+        Map<Long, List<AgentCitationResponse>> citationsByMessageId = conversationRecorder.getMessageCitations(messageIds);
+
+        return new PageResponse<>(
+                messages.getContent().stream()
+                        .map(m -> new AgentMessageDto(
+                                m.getId(),
+                                m.getRole(),
+                                m.getContent(),
+                                m.getCreatedAt(),
+                                citationsByMessageId.getOrDefault(m.getId(), List.of()),
+                                "ERROR".equalsIgnoreCase(m.getStatus())
+                        ))
+                        .toList(),
+                messages.getNumber(),
+                messages.getSize(),
+                messages.getTotalElements(),
+                messages.getTotalPages()
+        );
     }
 
     @Transactional
@@ -171,7 +194,7 @@ public class AgentService {
     public org.springframework.web.servlet.mvc.method.annotation.SseEmitter streamChat(AgentChatRequest request, CurrentUser user) {
         org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter = new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(600000L); // 10 minutes timeout
         
-        new Thread(() -> {
+        taskExecutor.execute(() -> {
             try {
                 KbSpace space = requireSpace(request.spaceId());
                 CurrentUser resolvedUser = resolveUser(user, space);
@@ -231,13 +254,13 @@ public class AgentService {
             } catch (Exception e) {
                 emitter.completeWithError(e);
             }
-        }).start();
-        
+        });
+
         return emitter;
     }
 
     private Map<String, Object> buildDebugInfo(CurrentUser resolvedUser, RetrievalSearchResponse retrieval, List<RerankedChunk> reranked, ContextBuildResult context) {
-        if (resolvedUser.roleCodes().contains("ADMIN") || resolvedUser.roleCodes().contains("admin") || resolvedUser.roleCodes().contains("KNOWLEDGE_ADMIN")) {
+        if (resolvedUser.roleCodes().contains(com.sunxin.knowledge.auth.SystemRoleConst.ADMIN) || resolvedUser.roleCodes().contains("admin") || resolvedUser.roleCodes().contains(com.sunxin.knowledge.auth.SystemRoleConst.KNOWLEDGE_ADMIN)) {
             return Map.of(
                     "retrieval_results", retrieval.results(),
                     "reranked_chunks", reranked,

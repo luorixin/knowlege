@@ -17,7 +17,8 @@ export interface UploadDocumentPayload {
 }
 
 export async function listDocuments(spaceId: EntityId): Promise<DocumentListItem[]> {
-  return unwrapResponse(await http.get(`/api/v1/kb-spaces/${spaceId}/documents`))
+  const data = unwrapResponse(await http.get(`/api/v1/kb-spaces/${spaceId}/documents`)) as any
+  return data.content || []
 }
 
 export async function getDocument(documentId: EntityId): Promise<DocumentDetail> {

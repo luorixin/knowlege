@@ -95,7 +95,7 @@ public class DocumentDesensitizationService {
 
     @Transactional(readOnly = true)
     public List<DesensitizationMappingResponse> mappings(Long documentId, CurrentUser currentUser) {
-        KbDocument document = documentRepository.findByIdAndStatusNot(documentId, DELETED)
+        KbDocument document = documentRepository.findByIdAndStatusNot(documentId, com.sunxin.knowledge.document.domain.DocumentStatus.DELETED)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
         accessControlService.requireDocumentPermission(document, currentUser, PermissionAction.ADMIN_MANAGE);
         KbDocumentVersion version = currentVersion(document);

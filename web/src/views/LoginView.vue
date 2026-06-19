@@ -16,14 +16,11 @@
         label-position="top"
         @submit.prevent
       >
-        <el-form-item label="用户 ID" prop="userId">
-          <el-input v-model="form.userId" />
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="form.username" placeholder="请输入用户名" />
         </el-form-item>
-        <el-form-item label="租户 ID" prop="tenantId">
-          <el-input v-model="form.tenantId" />
-        </el-form-item>
-        <el-form-item label="显示名称" prop="displayName">
-          <el-input v-model="form.displayName" />
+        <el-form-item label="密码" prop="password">
+          <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password @keyup.enter="submit" />
         </el-form-item>
         <el-button class="w-full mt-2" type="primary" size="large" :loading="submitting" @click="submit">
           登录
@@ -34,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -51,23 +49,26 @@ const formRef = ref<FormInstance>()
 const submitting = ref(false)
 
 const form = reactive({
-  userId: '42',
-  tenantId: '1001',
-  displayName: 'MVP 用户',
+  username: 'admin',
+  password: '',
 })
 
 const rules: FormRules = {
-  userId: [{ required: true, message: '请输入用户 ID', trigger: 'change' }],
-  tenantId: [{ required: true, message: '请输入租户 ID', trigger: 'change' }],
-  displayName: [{ required: true, message: '请输入显示名称', trigger: 'blur' }],
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
 async function submit() {
   if (!formRef.value) return
   await formRef.value.validate()
   submitting.value = true
-  userStore.login(form)
-  submitting.value = false
-  router.push(String(route.query.redirect || '/knowledge-bases'))
+  try {
+    await userStore.login(form.username, form.password)
+    router.push(String(route.query.redirect || '/knowledge-bases'))
+  } catch (err: any) {
+    ElMessage.error(err.message || '登录失败')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>

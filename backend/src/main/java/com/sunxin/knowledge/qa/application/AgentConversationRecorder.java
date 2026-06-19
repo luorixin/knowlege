@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.sunxin.knowledge.auth.CurrentUser;
@@ -85,23 +87,30 @@ public class AgentConversationRecorder {
 
     public List<com.sunxin.knowledge.qa.llm.ChatMessage> getHistoryMessages(Long sessionId, int limit) {
         if (sessionId == null) return List.of();
-        List<KbQueryMessage> messages = messageRepository.findBySessionIdOrderByCreatedAt(sessionId);
-        return messages.stream()
-                .skip(Math.max(0, messages.size() - limit))
+        // Fetch the last `limit` messages by ordering by createdAt descending
+        List<KbQueryMessage> messages = messageRepository.findBySessionIdOrderByCreatedAtDesc(
+                sessionId, PageRequest.of(0, limit)
+        ).getContent();
+        // We need to return them in chronological order, so reverse the list
+        List<KbQueryMessage> reversed = new ArrayList<>(messages);
+        java.util.Collections.reverse(reversed);
+        
+        return reversed.stream()
                 .map(m -> new com.sunxin.knowledge.qa.llm.ChatMessage(m.getRole().toLowerCase(), m.getContent()))
                 .toList();
     }
 
-    public List<KbQuerySession> listSessions(KbSpace space, CurrentUser user) {
+    public Page<KbQuerySession> listSessions(KbSpace space, CurrentUser user, int page, int size) {
         return sessionRepository.findByTenantIdAndSpaceIdAndUserIdAndStatusOrderByCreatedAtDesc(
                 space.getTenantId(),
                 space.getId(),
                 user.userId(),
-                ACTIVE
+                ACTIVE,
+                PageRequest.of(page, size)
         );
     }
 
-    public List<KbQueryMessage> getSessionMessages(Long sessionId, KbSpace space, CurrentUser user) {
+    public Page<KbQueryMessage> getSessionMessages(Long sessionId, KbSpace space, CurrentUser user, int page, int size) {
         KbQuerySession session = sessionRepository.findByIdAndTenantIdAndUserIdAndStatus(
                         sessionId,
                         space.getTenantId(),
@@ -112,32 +121,47 @@ public class AgentConversationRecorder {
         if (session.getSpaceId() != null && !session.getSpaceId().equals(space.getId())) {
             throw new BadRequestException("Query session does not belong to requested knowledge space");
         }
-        return messageRepository.findBySessionIdOrderByCreatedAt(sessionId);
+        return messageRepository.findBySessionIdOrderByCreatedAt(sessionId, PageRequest.of(page, size));
     }
 
     public List<AgentCitationResponse> getMessageCitations(Long messageId) {
-        return citationRepository.findByMessageIdOrderByRankNo(messageId).stream()
-                .map(c -> {
-                    String docTitle = "";
-                    String sourceUri = null;
-                    if (c.getMetadataJson() != null) {
-                        try {
-                            Map<String, Object> map = objectMapper.readValue(c.getMetadataJson(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
-                            if (map.containsKey("doc_title")) docTitle = (String) map.get("doc_title");
-                            if (map.containsKey("source_uri")) sourceUri = (String) map.get("source_uri");
-                        } catch (Exception ignore) {}
-                    }
-                    return new AgentCitationResponse(
-                            c.getRankNo() != null ? c.getRankNo() : 0,
-                            c.getDocId(),
-                            docTitle,
-                            c.getPageNo(),
-                            c.getSectionTitle(),
-                            c.getQuoteText(),
-                            sourceUri
-                    );
-                })
-                .toList();
+        return getMessageCitations(List.of(messageId)).getOrDefault(messageId, List.of());
+    }
+
+    public Map<Long, List<AgentCitationResponse>> getMessageCitations(List<Long> messageIds) {
+        if (messageIds == null || messageIds.isEmpty()) {
+            return Map.of();
+        }
+        
+        List<KbAnswerCitation> citations = citationRepository.findByMessageIdIn(messageIds);
+        Map<Long, List<AgentCitationResponse>> result = new LinkedHashMap<>();
+        
+        for (KbAnswerCitation c : citations) {
+            String docTitle = "";
+            String sourceUri = null;
+            if (c.getMetadataJson() != null) {
+                try {
+                    Map<String, Object> map = objectMapper.readValue(c.getMetadataJson(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                    if (map.containsKey("doc_title")) docTitle = (String) map.get("doc_title");
+                    if (map.containsKey("source_uri")) sourceUri = (String) map.get("source_uri");
+                } catch (Exception ignore) {}
+            }
+            AgentCitationResponse response = new AgentCitationResponse(
+                    c.getRankNo() != null ? c.getRankNo() : 0,
+                    c.getDocId(),
+                    docTitle,
+                    c.getPageNo(),
+                    c.getSectionTitle(),
+                    c.getQuoteText(),
+                    sourceUri
+            );
+            result.computeIfAbsent(c.getMessageId(), k -> new ArrayList<>()).add(response);
+        }
+        
+        // sort each list by rankNo
+        result.values().forEach(list -> list.sort(java.util.Comparator.comparing(AgentCitationResponse::citationId)));
+        
+        return result;
     }
 
     public KbQueryMessage saveUserMessage(KbQuerySession session, String query) {

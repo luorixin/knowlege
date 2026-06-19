@@ -21,6 +21,16 @@ public class CurrentUserResolver {
     }
 
     public CurrentUser resolve(Long userId, Long tenantId, Long fallbackTenantId) {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof org.springframework.security.oauth2.jwt.Jwt jwt) {
+            Long jwtUserId = jwt.getClaim("userId");
+            Long jwtTenantId = jwt.getClaim("tenantId");
+            if (jwtUserId != null && jwtTenantId != null) {
+                userId = jwtUserId;
+                tenantId = jwtTenantId;
+            }
+        }
+
         Long effectiveUserId = userId == null ? 0L : userId;
         Long effectiveTenantId = tenantId == null ? fallbackTenantId : tenantId;
         if (tenantId != null && fallbackTenantId != null && !tenantId.equals(fallbackTenantId)) {

@@ -9,6 +9,9 @@ public record EvalCaseSpec(
         List<Long> expectedChunkIds,
         Boolean expectNoAnswer,
         SearchFilters filters,
-        List<String> tags
+        List<String> tags,
+        Integer expectedBlockCount,
+        Integer expectedTableCount,
+        Integer expectedErrorCount
 ) {
 }

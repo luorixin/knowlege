@@ -19,6 +19,7 @@ interface ChatState {
   messages: ChatMessage[]
   activeCitations: AgentCitation[]
   sending: boolean
+  abortController: AbortController | null
 }
 
 export const useChatStore = defineStore('chat', {
@@ -28,6 +29,7 @@ export const useChatStore = defineStore('chat', {
     messages: [],
     activeCitations: [],
     sending: false,
+    abortController: null,
   }),
   actions: {
     async send(spaceId: EntityId, query: string, filters: SearchFilters) {
@@ -61,10 +63,12 @@ export const useChatStore = defineStore('chat', {
       }
 
       const { chatWithAgentStream } = await import('@/api/agent')
-      
+      this.abortController = new AbortController()
+
       return new Promise<void>((resolve) => {
         chatWithAgentStream(
           payload,
+          this.abortController!,
           (chunk) => {
             const msg = this.messages.find(m => m.id === assistantMessageId)
             if (msg) msg.content += chunk
@@ -78,22 +82,31 @@ export const useChatStore = defineStore('chat', {
               msg.debugInfo = result.debug_info
             }
             this.sending = false
+            this.abortController = null
             // Refresh sessions list to show new chat
             this.loadSessions(spaceId)
             resolve()
           },
           (error) => {
             const msg = this.messages.find(m => m.id === assistantMessageId)
-            if (msg) {
+            if (msg && error.name !== 'AbortError') {
               msg.error = true
               msg.content += `\n\n**请求失败**: ${error.message}`
             }
             this.activeCitations = []
             this.sending = false
+            this.abortController = null
             resolve()
           }
         )
       })
+    },
+    stopGeneration() {
+      if (this.abortController) {
+        this.abortController.abort()
+        this.abortController = null
+        this.sending = false
+      }
     },
     focusCitations(citations: AgentCitation[]) {
       this.activeCitations = citations

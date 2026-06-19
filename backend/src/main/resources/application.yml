@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: knowledge-backend
+  security:
+    # oauth2:
+    #   resourceserver:
+    #     jwt:
+    #       # Uncomment and configure these for production JWT validation
+    #       # issuer-uri: ${OAUTH2_JWT_ISSUER_URI}
+    #       # jwk-set-uri: ${OAUTH2_JWT_JWK_SET_URI}
   config:
     import:
       - optional:file:deploy/.env[.properties]
@@ -65,6 +72,10 @@ management:
         include: vector
 
 knowledge:
+  security:
+    enabled: ${KNOWLEDGE_SECURITY_ENABLED:true}
+  jwt:
+    secret: ${JWT_SECRET:KnowledgePlatformMVPSecretKey1234567890}
   storage:
     type: ${KNOWLEDGE_STORAGE_TYPE:local}
     local-root: ${KNOWLEDGE_STORAGE_LOCAL_ROOT:data/uploads}
@@ -121,11 +132,11 @@ knowledge:
     enabled: ${KNOWLEDGE_KAFKA_ENABLED:true}
   ai-service:
     endpoint: ${AI_SERVICE_ENDPOINT:http://localhost:8001}
-    parse-path: ${AI_SERVICE_PARSE_PATH:/api/parse/document}
+    parse-path: ${AI_SERVICE_PARSE_PATH:/api/v1/parse/document}
     embedding-path: ${AI_SERVICE_EMBEDDING_PATH:/api/v1/embeddings}
-    embedding-provider: ${AI_EMBEDDING_PROVIDER:openai}
-    embedding-model: ${AI_EMBEDDING_MODEL:mock-embedding-v1}
-    embedding-dimension: ${AI_EMBEDDING_DIM:128}
+    embedding-provider: ${AI_SERVICE_EMBEDDING_PROVIDER:openai}
+    embedding-model: ${AI_SERVICE_EMBEDDING_MODEL:mock-embedding-v1}
+    embedding-dimension: ${EMBEDDING_DIMENSION:128}
     timeout: ${AI_SERVICE_TIMEOUT:60s}
   # LLM provider. mock | openai-compatible | qwen | private-http. Real providers are TODO.
   llm:

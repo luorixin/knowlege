@@ -153,11 +153,20 @@
             @keydown.ctrl.enter.prevent="send"
           />
           <button 
+            v-if="!chatStore.sending"
             class="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-blue-800 text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:pointer-events-none mb-0.5 outline-none"
             :disabled="!spaceId || !question.trim()" 
             @click="send"
           >
             <span class="material-symbols-outlined">send</span>
+          </button>
+          <button 
+            v-else
+            class="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-slate-800 text-white shadow-md transition-all hover:bg-slate-700 hover:shadow-lg active:scale-95 mb-0.5 outline-none"
+            @click="chatStore.stopGeneration()"
+            title="停止生成"
+          >
+            <span class="material-symbols-outlined">stop_circle</span>
           </button>
         </div>
         <p class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-4">
@@ -183,6 +192,7 @@
           v-if="chatStore.activeCitations?.length"
           :citations="chatStore.activeCitations" 
           :active-id="activeCitationId"
+          @preview="handlePreview"
         />
         <div v-else class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 opacity-60">
           <span class="material-symbols-outlined text-[64px] mb-4 font-light">library_books</span>
@@ -205,6 +215,20 @@
             <pre class="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-700 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ JSON.stringify(currentDebugInfo.retrieval_results, null, 2) }}</pre>
           </el-collapse-item>
         </el-collapse>
+      </div>
+    </el-drawer>
+
+    <!-- Source Preview Drawer -->
+    <el-drawer v-model="previewVisible" :title="previewTitle" size="50%">
+      <div v-if="previewLoading" class="w-full h-full flex flex-col items-center justify-center text-slate-400">
+        <el-icon class="is-loading text-4xl mb-4"><span class="material-symbols-outlined">refresh</span></el-icon>
+        <p>正在加载原文...</p>
+      </div>
+      <div v-else-if="previewUrl" class="w-full h-full relative bg-slate-100 rounded overflow-hidden">
+        <iframe :src="previewUrl" class="w-full h-full border-none"></iframe>
+      </div>
+      <div v-else class="w-full h-full flex items-center justify-center text-slate-400">
+        <p>暂无预览内容</p>
       </div>
     </el-drawer>
   </div>
@@ -244,6 +268,11 @@ const currentDebugInfo = ref<any>(null)
 const debugActiveNames = ref(['1', '2'])
 const activeCitationId = ref<string | null>(null)
 
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewUrl = ref<string | null>(null)
+const previewTitle = ref('文档预览')
+
 const showLeftSidebar = ref(window.innerWidth >= 768)
 const showRightSidebar = ref(window.innerWidth >= 1024)
 
@@ -281,6 +310,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  if (previewUrl.value && previewUrl.value.startsWith('blob:')) {
+    window.URL.revokeObjectURL(previewUrl.value)
+  }
 })
 
 function formatDate(dateStr: string) {
@@ -360,6 +392,49 @@ function handleCitationClick(e: MouseEvent) {
       return
     }
     target = target.parentNode as HTMLElement
+  }
+}
+
+async function handlePreview(citation: import('@/api/types').AgentCitation) {
+  if (!citation.source_uri || !citation.doc_id) return
+  
+  previewTitle.value = citation.doc_title || '文档预览'
+  previewVisible.value = true
+  
+  if (citation.source_uri.startsWith('local://')) {
+    previewLoading.value = true
+    if (previewUrl.value && previewUrl.value.startsWith('blob:')) {
+      window.URL.revokeObjectURL(previewUrl.value)
+    }
+    previewUrl.value = null
+    
+    try {
+      const { http } = await import('@/api/http')
+      const response = await http.get(`/api/v1/documents/${citation.doc_id}/download`, { responseType: 'blob' })
+      const contentType = response.headers['content-type'] as string | undefined
+      
+      const blob = new Blob([response.data as BlobPart], { type: contentType })
+      let url = window.URL.createObjectURL(blob)
+      
+      // If it's a PDF, we can append #search= to trigger browser's native highlight
+      if (contentType === 'application/pdf' && citation.chunk_content) {
+        // Find a representative sentence to highlight (to avoid too long search string)
+        const sentences = citation.chunk_content.split(/[。！？.!?\n]/).filter(s => s.trim().length > 5)
+        const searchKeyword = sentences.length > 0 ? sentences[0].trim() : citation.chunk_content.substring(0, 50)
+        url += `#search="${encodeURIComponent(searchKeyword)}"`
+      }
+      
+      previewUrl.value = url
+    } catch (e) {
+      console.error('Failed to load document preview', e)
+      ElMessage.error('无法加载文档预览')
+      previewVisible.value = false
+    } finally {
+      previewLoading.value = false
+    }
+  } else {
+    // For external URLs, we can just use them
+    previewUrl.value = citation.source_uri
   }
 }
 </script>

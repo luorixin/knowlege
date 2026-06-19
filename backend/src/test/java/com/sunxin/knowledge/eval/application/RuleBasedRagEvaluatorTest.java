@@ -24,7 +24,10 @@ class RuleBasedRagEvaluatorTest {
                 List.of(100L),
                 false,
                 null,
-                List.of()
+                List.of(),
+                null,
+                null,
+                null
         );
         RetrievalSearchResponse retrieval = new RetrievalSearchResponse(List.of(new RetrievalSearchResult(
                 100L,

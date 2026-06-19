@@ -38,6 +38,7 @@ import com.sunxin.knowledge.persistence.repository.KbDocumentVersionRepository;
 import com.sunxin.knowledge.persistence.repository.KbPermissionPolicyRepository;
 import com.sunxin.knowledge.persistence.repository.KbSpaceRepository;
 import com.sunxin.knowledge.common.id.IdGenerator;
+import com.sunxin.knowledge.task.domain.TaskStatus;
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
@@ -137,7 +138,7 @@ class DocumentChunkingApiTest {
                 uploaded.documentId(),
                 uploaded.versionId()
         ).orElseThrow();
-        assertThat(task.getStatus()).isEqualTo("COMPLETED");
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.COMPLETED);
         assertThat(task.getProgressPercent()).isEqualTo(100);
     }
 

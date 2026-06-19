@@ -8,23 +8,10 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 class DocumentParseRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    doc_id: str = Field(
-        min_length=1,
-        validation_alias=AliasChoices("doc_id", "document_id", "documentId"),
-    )
-    version_id: str = Field(
-        default="1",
-        min_length=1,
-        validation_alias=AliasChoices("version_id", "versionId"),
-    )
-    file_path: str = Field(
-        min_length=1,
-        validation_alias=AliasChoices("file_path", "storage_uri", "filePath", "storageUri"),
-    )
-    file_type: str = Field(
-        min_length=1,
-        validation_alias=AliasChoices("file_type", "fileType"),
-    )
+    doc_id: str = Field(min_length=1, validation_alias=AliasChoices("doc_id", "document_id"))
+    version_id: str = Field(default="1", min_length=1, validation_alias=AliasChoices("version_id", "document_version_id"))
+    file_path: str = Field(min_length=1, validation_alias=AliasChoices("file_path", "storage_uri"))
+    file_type: str = Field(min_length=1)
 
 
 class ParsedPage(BaseModel):

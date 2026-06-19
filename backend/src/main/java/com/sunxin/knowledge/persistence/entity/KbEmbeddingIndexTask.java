@@ -4,7 +4,11 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+
+import com.sunxin.knowledge.task.domain.TaskStatus;
 
 @Entity
 @Table(name = "kb_embedding_index_task")
@@ -40,8 +44,9 @@ public class KbEmbeddingIndexTask extends AuditableEntity {
     @Column(name = "vector_collection", length = 256)
     private String vectorCollection;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
-    private String status = "PENDING";
+    private TaskStatus status = TaskStatus.PENDING;
 
     @Column(name = "priority", nullable = false)
     private Integer priority = 0;
@@ -147,11 +152,11 @@ public class KbEmbeddingIndexTask extends AuditableEntity {
         this.vectorCollection = vectorCollection;
     }
 
-    public String getStatus() {
+    public TaskStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(TaskStatus status) {
         this.status = status;
     }
 

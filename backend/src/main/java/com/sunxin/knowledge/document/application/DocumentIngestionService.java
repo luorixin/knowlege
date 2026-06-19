@@ -18,12 +18,18 @@ import com.sunxin.knowledge.document.dto.DocumentListItemResponse;
 import com.sunxin.knowledge.document.dto.DocumentParseStatusResponse;
 import com.sunxin.knowledge.document.dto.DocumentUploadRequest;
 import com.sunxin.knowledge.document.dto.DocumentUploadResponse;
+import com.sunxin.knowledge.common.dto.PageResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.sunxin.knowledge.document.storage.FileStorageService;
 import com.sunxin.knowledge.document.storage.StoredFile;
 import com.sunxin.knowledge.document.support.DocumentType;
 import com.sunxin.knowledge.document.support.FileHash;
 import com.sunxin.knowledge.knowledgebase.application.KnowledgeSpaceApplicationService;
 import com.sunxin.knowledge.persistence.entity.KbDocument;
+import com.sunxin.knowledge.document.domain.DocumentStatus;
+import com.sunxin.knowledge.task.domain.TaskStatus;
 import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
 import com.sunxin.knowledge.persistence.entity.KbDocumentVersion;
 import com.sunxin.knowledge.persistence.entity.KbSpace;
@@ -39,10 +45,6 @@ import java.nio.file.Path;
 @Service
 public class DocumentIngestionService {
 
-    private static final String ACTIVE = "ACTIVE";
-    private static final String DELETED = "DELETED";
-    private static final String UPLOADED = "UPLOADED";
-    private static final String PENDING = "PENDING";
     private static final String PARSE_DOCUMENT = "PARSE_DOCUMENT";
     private static final String DEFAULT_CONFIDENTIAL_LEVEL = "INTERNAL";
 
@@ -101,7 +103,7 @@ public class DocumentIngestionService {
                         space.getTenantId(),
                         space.getId(),
                         fileHash,
-                        DELETED
+                        DocumentStatus.DELETED
                 )
                 .map(document -> existingUploadResponse(document, true))
                 .orElseGet(() -> createNewDocument(
@@ -116,11 +118,14 @@ public class DocumentIngestionService {
     }
 
     @Transactional(readOnly = true)
-    public List<DocumentListItemResponse> listBySpace(Long spaceId, CurrentUser currentUser) {
+    public PageResponse<DocumentListItemResponse> listBySpace(Long spaceId, int page, int size, CurrentUser currentUser) {
         KbSpace space = spaceService.requireActiveSpace(spaceId);
         CurrentUser resolvedUser = currentUser.withTenant(space.getTenantId());
-        return documentRepository.findBySpaceIdAndStatusNotOrderByCreatedAtDesc(spaceId, DELETED)
-                .stream()
+        
+        PageRequest pageRequest = PageRequest.of(page, size);
+        Page<KbDocument> documentPage = documentRepository.findBySpaceIdAndStatusNotOrderByCreatedAtDesc(spaceId, DocumentStatus.DELETED, pageRequest);
+        
+        List<DocumentListItemResponse> filteredContent = documentPage.getContent().stream()
                 .filter(document -> accessControlService.canAccessDocument(
                         space,
                         document,
@@ -129,6 +134,14 @@ public class DocumentIngestionService {
                 ))
                 .map(DocumentListItemResponse::fromEntity)
                 .toList();
+                
+        return new PageResponse<>(
+                filteredContent,
+                documentPage.getNumber(),
+                documentPage.getSize(),
+                documentPage.getTotalElements(),
+                documentPage.getTotalPages()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -143,7 +156,7 @@ public class DocumentIngestionService {
     public DocumentDeleteResponse delete(Long documentId, CurrentUser currentUser) {
         KbDocument document = requireActiveDocument(documentId);
         accessControlService.requireDocumentPermission(document, currentUser, PermissionAction.DOCUMENT_DELETE);
-        document.setStatus(DELETED);
+        document.setStatus(DocumentStatus.DELETED);
         document.setUpdatedBy(currentUser.userId());
         documentRepository.save(document);
         return new DocumentDeleteResponse(document.getId(), document.getStatus());
@@ -218,7 +231,7 @@ public class DocumentIngestionService {
         document.setStorageUri(storedFile.sourceUri());
         document.setFileHash(fileHash);
         document.setFileSize(file.getSize());
-        document.setStatus(UPLOADED);
+        document.setStatus(DocumentStatus.UPLOADED);
         document.setCreatedBy(currentUser.userId());
         document.setUpdatedBy(currentUser.userId());
         documentRepository.save(document);
@@ -233,10 +246,10 @@ public class DocumentIngestionService {
         version.setStorageUri(storedFile.sourceUri());
         version.setFileHash(fileHash);
         version.setFileSize(file.getSize());
-        version.setParseStatus(PENDING);
+        version.setParseStatus("PENDING");
         version.setChunkCount(0);
         version.setTotalTokens(0);
-        version.setStatus(ACTIVE);
+        version.setStatus("ACTIVE");
         version.setCreatedBy(currentUser.userId());
         version.setUpdatedBy(currentUser.userId());
         versionRepository.save(version);
@@ -251,7 +264,7 @@ public class DocumentIngestionService {
         parseTask.setDocId(document.getId());
         parseTask.setVersionId(version.getId());
         parseTask.setTaskType(PARSE_DOCUMENT);
-        parseTask.setStatus(PENDING);
+        parseTask.setStatus(TaskStatus.PENDING);
         parseTask.setPriority(0);
         parseTask.setRetryCount(0);
         parseTask.setProgressPercent(0);
@@ -297,7 +310,7 @@ public class DocumentIngestionService {
     }
 
     private KbDocument requireActiveDocument(Long documentId) {
-        return documentRepository.findByIdAndStatusNot(documentId, DELETED)
+        return documentRepository.findByIdAndStatusNot(documentId, DocumentStatus.DELETED)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
     }
 
@@ -306,7 +319,7 @@ public class DocumentIngestionService {
             return versionRepository.findById(document.getCurrentVersionId())
                     .orElseThrow(() -> new NotFoundException("Document version not found"));
         }
-        return versionRepository.findFirstByDocIdAndStatusOrderByVersionNoDesc(document.getId(), ACTIVE)
+        return versionRepository.findFirstByDocIdAndStatusOrderByVersionNoDesc(document.getId(), "ACTIVE")
                 .orElseThrow(() -> new NotFoundException("Document version not found"));
     }
 

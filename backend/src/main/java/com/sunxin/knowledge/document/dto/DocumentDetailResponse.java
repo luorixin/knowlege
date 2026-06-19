@@ -2,6 +2,8 @@ package com.sunxin.knowledge.document.dto;
 
 import java.time.LocalDateTime;
 
+import com.sunxin.knowledge.document.domain.DocumentStatus;
+
 import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbDocumentVersion;
 
@@ -17,7 +19,7 @@ public record DocumentDetailResponse(
         String sourceUri,
         String fileHash,
         Long fileSize,
-        String status,
+        DocumentStatus status,
         DocumentVersionResponse currentVersion,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

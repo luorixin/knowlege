@@ -14,6 +14,9 @@ public class KbUser extends AuditableEntity {
     @Column(name = "username", nullable = false, length = 128)
     private String username;
 
+    @Column(name = "password", nullable = false, length = 256)
+    private String password;
+
     @Column(name = "display_name", length = 256)
     private String displayName;
 
@@ -40,6 +43,14 @@ public class KbUser extends AuditableEntity {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public String getDisplayName() {

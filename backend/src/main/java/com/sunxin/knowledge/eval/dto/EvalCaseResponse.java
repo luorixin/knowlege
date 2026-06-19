@@ -18,6 +18,8 @@ public record EvalCaseResponse(
         List<Long> expectedChunkIds,
         @JsonProperty("expect_no_answer")
         Boolean expectNoAnswer,
+        @JsonProperty("case_type")
+        String caseType,
         String status
 ) {
 
@@ -30,6 +32,7 @@ public record EvalCaseResponse(
                 spec.expectedDocIds(),
                 spec.expectedChunkIds(),
                 spec.expectNoAnswer(),
+                evalCase.getCaseType(),
                 evalCase.getStatus()
         );
     }

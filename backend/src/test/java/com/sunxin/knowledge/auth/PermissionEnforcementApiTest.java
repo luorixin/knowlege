@@ -19,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.sunxin.knowledge.common.id.IdGenerator;
+import com.sunxin.knowledge.document.domain.DocumentStatus;
 import com.sunxin.knowledge.persistence.entity.KbAuditLog;
 import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
@@ -172,7 +173,7 @@ class PermissionEnforcementApiTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
-        assertThat(documentRepository.findById(document.getId()).orElseThrow().getStatus()).isEqualTo("ACTIVE");
+        assertThat(documentRepository.findById(document.getId()).orElseThrow().getStatus()).isEqualTo(DocumentStatus.ACTIVE);
     }
 
     @Test
@@ -221,7 +222,7 @@ class PermissionEnforcementApiTest {
         document.setSourceUri("local://permission/" + title);
         document.setStorageUri(document.getSourceUri());
         document.setFileHash("hash-" + document.getId());
-        document.setStatus("ACTIVE");
+        document.setStatus(DocumentStatus.ACTIVE);
         documentRepository.save(document);
 
         KbDocumentVersion version = new KbDocumentVersion();

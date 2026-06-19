@@ -17,12 +17,13 @@ def create_app() -> FastAPI:
         description="Document processing and model abstraction service for the enterprise knowledge agent.",
     )
     app.include_router(parse.router, prefix="/api")
+    app.include_router(parse.router, prefix="/api/v1")
     app.include_router(api_router, prefix="/api/v1")
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request, exc):
         body_preview = ""
-        if request.url.path == "/api/parse/document":
+        if request.url.path == "/api/v1/parse/document":
             body = await request.body()
             body_preview = body.decode("utf-8", errors="replace")[:1000]
         logger.warning(

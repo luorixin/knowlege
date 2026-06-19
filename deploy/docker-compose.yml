@@ -134,6 +134,7 @@ services:
       VECTOR_STORE_REQUEST_TIMEOUT: ${VECTOR_STORE_REQUEST_TIMEOUT:-10s}
       VECTOR_STORE_FAIL_FAST: ${VECTOR_STORE_FAIL_FAST:-false}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KNOWLEDGE_SECURITY_ENABLED: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -153,7 +154,7 @@ services:
       context: ../ai-service
       dockerfile: Dockerfile
       args:
-        INSTALL_OCR: ${AI_SERVICE_INSTALL_OCR:-false}
+        AI_SERVICE_INSTALL_OCR: ${AI_SERVICE_INSTALL_OCR:-false}
     container_name: knowledge-ai-service
     env_file:
       - .env

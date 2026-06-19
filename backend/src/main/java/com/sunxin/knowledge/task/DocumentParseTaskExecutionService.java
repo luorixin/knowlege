@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -34,16 +35,13 @@ import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentVersionRepository;
 import com.sunxin.knowledge.task.dto.ParseTaskResponse;
+import com.sunxin.knowledge.common.dto.PageResponse;
+import com.sunxin.knowledge.task.domain.TaskStatus;
 
 @Service
 @EnableConfigurationProperties(TaskExecutionProperties.class)
 public class DocumentParseTaskExecutionService {
 
-    private static final String ACTIVE = "ACTIVE";
-    private static final String PENDING = "PENDING";
-    private static final String RUNNING = "RUNNING";
-    private static final String FAILED = "FAILED";
-    private static final String COMPLETED = "COMPLETED";
     private static final String PARTIAL_SUCCESS = "PARTIAL_SUCCESS";
     private static final int RUNNING_PROGRESS = 10;
 
@@ -79,7 +77,7 @@ public class DocumentParseTaskExecutionService {
     }
 
     public Optional<ParseTaskResponse> processNextPending() {
-        return taskRepository.findFirstByStatusOrderByPriorityDescCreatedAtAsc(PENDING)
+        return taskRepository.findFirstByStatusOrderByPriorityDescCreatedAtAsc(TaskStatus.PENDING)
                 .map(task -> process(task.getId()));
     }
 
@@ -101,8 +99,12 @@ public class DocumentParseTaskExecutionService {
                     localStoredFileResolver.resolve(version.getSourceUri()).toString(),
                     fileType(version)
             ));
-            if (FAILED.equals(parseResponse.status())) {
-                throw new BadRequestException("AI parser returned FAILED status");
+            if ("FAILED".equals(parseResponse.status())) {
+                markParseTaskResult(taskId, parseResponse);
+                long elapsedMs = System.currentTimeMillis() - startedAt;
+                log.warn("parse_task_complete task_id={} doc_id={} version_id={} status={} elapsed_ms={}",
+                        taskId, docId, versionId, normalizedAiStatus(parseResponse), elapsedMs);
+                return ParseTaskResponse.fromEntity(taskRepository.findById(taskId).orElseThrow());
             }
             RebuildChunksRequest rebuildRequest = toRebuildChunksRequest(parseResponse);
             chunkingService.rebuildChunksFromPipeline(document.getId(), rebuildRequest, actorUserId(task));
@@ -123,10 +125,10 @@ public class DocumentParseTaskExecutionService {
     public ParseTaskResponse retry(Long taskId) {
         KbDocumentParseTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Document parse task not found"));
-        if (!FAILED.equals(task.getStatus())) {
+        if (task.getStatus() != TaskStatus.FAILED) {
             throw new BadRequestException("Only FAILED parse tasks can be retried");
         }
-        task.setStatus(PENDING);
+        task.setStatus(TaskStatus.PENDING);
         task.setProgressPercent(0);
         task.setRetryCount(task.getRetryCount() == null ? 1 : task.getRetryCount() + 1);
         task.setWorkerId(null);
@@ -138,15 +140,19 @@ public class DocumentParseTaskExecutionService {
     }
 
     @Transactional(readOnly = true)
-    public List<ParseTaskResponse> list(Long spaceId, String status, int limit) {
-        return taskRepository.findBySpaceIdAndOptionalStatus(
-                        spaceId,
-                        blankToNull(status),
-                        PageRequest.of(0, Math.min(Math.max(limit, 1), 200))
-                )
-                .stream()
-                .map(ParseTaskResponse::fromEntity)
-                .toList();
+    public PageResponse<ParseTaskResponse> list(Long spaceId, String status, int page, int size) {
+        Page<KbDocumentParseTask> taskPage = taskRepository.findBySpaceIdAndOptionalStatus(
+                spaceId,
+                status != null && !status.isBlank() ? TaskStatus.valueOf(status.trim()) : null,
+                PageRequest.of(page, Math.min(Math.max(size, 1), 200))
+        );
+        return new PageResponse<>(
+                taskPage.getContent().stream().map(ParseTaskResponse::fromEntity).toList(),
+                taskPage.getNumber(),
+                taskPage.getSize(),
+                taskPage.getTotalElements(),
+                taskPage.getTotalPages()
+        );
     }
 
     @org.springframework.kafka.annotation.KafkaListener(topics = KafkaConfig.TOPIC_PARSE_TASKS)
@@ -165,11 +171,11 @@ public class DocumentParseTaskExecutionService {
     protected KbDocumentParseTask markRunning(Long taskId) {
         KbDocumentParseTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Document parse task not found"));
-        if (!PENDING.equals(task.getStatus()) && !RUNNING.equals(task.getStatus())) {
+        if (task.getStatus() != TaskStatus.PENDING && task.getStatus() != TaskStatus.RUNNING) {
             throw new BadRequestException("Only PENDING parse tasks can be processed");
         }
         LocalDateTime now = LocalDateTime.now();
-        task.setStatus(RUNNING);
+        task.setStatus(TaskStatus.RUNNING);
         task.setProgressPercent(RUNNING_PROGRESS);
         task.setStartedAt(now);
         task.setFinishedAt(null);
@@ -179,7 +185,7 @@ public class DocumentParseTaskExecutionService {
 
         KbDocumentVersion version = versionRepository.findById(task.getVersionId())
                 .orElseThrow(() -> new NotFoundException("Document version not found"));
-        version.setParseStatus(RUNNING);
+        version.setParseStatus("RUNNING");
         versionRepository.save(version);
         return taskRepository.save(task);
     }
@@ -188,7 +194,7 @@ public class DocumentParseTaskExecutionService {
     protected ParseTaskResponse markFailed(Long taskId, RuntimeException ex) {
         KbDocumentParseTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Document parse task not found"));
-        task.setStatus(FAILED);
+        task.setStatus(TaskStatus.FAILED);
         task.setProgressPercent(100);
         task.setFinishedAt(LocalDateTime.now());
         task.setErrorCode(ex.getClass().getSimpleName());
@@ -196,7 +202,7 @@ public class DocumentParseTaskExecutionService {
         taskRepository.save(task);
 
         versionRepository.findById(task.getVersionId()).ifPresent(version -> {
-            version.setParseStatus(FAILED);
+            version.setParseStatus("FAILED");
             versionRepository.save(version);
         });
         return ParseTaskResponse.fromEntity(task);
@@ -208,7 +214,7 @@ public class DocumentParseTaskExecutionService {
         }
         if (response.blocks() != null && !response.blocks().isEmpty()) {
             List<ParsedPageRequest> pages = response.blocks().stream()
-                    .filter(block -> block.content() != null && !block.content().isBlank())
+                    .filter(block -> hasText(blockContent(block)))
                     .map(block -> new ParsedPageRequest(
                             block.pageNo(),
                             block.sectionTitle(),
@@ -245,13 +251,13 @@ public class DocumentParseTaskExecutionService {
         String status = normalizedAiStatus(response);
         KbDocumentParseTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Document parse task not found"));
-        task.setStatus(status);
+        task.setStatus(TaskStatus.valueOf(status));
         task.setProgressPercent(100);
         if (task.getFinishedAt() == null) {
             task.setFinishedAt(LocalDateTime.now());
         }
-        task.setErrorCode(PARTIAL_SUCCESS.equals(status) ? "PARTIAL_SUCCESS" : null);
-        task.setErrorMessage(PARTIAL_SUCCESS.equals(status) ? "Some pages failed to parse" : null);
+        task.setErrorCode(errorCode(status));
+        task.setErrorMessage(errorMessage(status, response));
         task.setMetadataJson(toJson(parseMetadata(response)));
         taskRepository.save(task);
 
@@ -263,13 +269,13 @@ public class DocumentParseTaskExecutionService {
 
     private static String normalizedAiStatus(DocumentParseResponse response) {
         if (response == null || response.status() == null || response.status().isBlank()) {
-            return COMPLETED;
+            return "COMPLETED";
         }
         return switch (response.status()) {
-            case "SUCCESS" -> COMPLETED;
-            case "PARTIAL_SUCCESS" -> PARTIAL_SUCCESS;
-            case "FAILED" -> FAILED;
-            default -> COMPLETED;
+            case "SUCCESS" -> "COMPLETED";
+            case "PARTIAL_SUCCESS" -> "PARTIAL_SUCCESS";
+            case "FAILED" -> "FAILED";
+            default -> "COMPLETED";
         };
     }
 
@@ -277,7 +283,39 @@ public class DocumentParseTaskExecutionService {
         if ("table".equalsIgnoreCase(block.blockType()) && block.markdown() != null && !block.markdown().isBlank()) {
             return block.markdown();
         }
+        if ((block.content() == null || block.content().isBlank())
+                && block.markdown() != null
+                && !block.markdown().isBlank()) {
+            return block.markdown();
+        }
         return block.content();
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static String errorCode(String status) {
+        if (PARTIAL_SUCCESS.equals(status)) {
+            return "PARTIAL_SUCCESS";
+        }
+        if ("FAILED".equals(status)) {
+            return "PARSE_FAILED";
+        }
+        return null;
+    }
+
+    private static String errorMessage(String status, DocumentParseResponse response) {
+        if (PARTIAL_SUCCESS.equals(status)) {
+            return "Some pages failed to parse";
+        }
+        if ("FAILED".equals(status)) {
+            if (response.errors() != null && !response.errors().isEmpty()) {
+                return limitMessage(response.errors().getFirst().message());
+            }
+            return "AI parser returned FAILED status";
+        }
+        return null;
     }
 
     private static String blockContentType(ParsedBlock block) {

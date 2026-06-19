@@ -1,4 +1,5 @@
 package com.sunxin.knowledge.document.dto;
+import com.sunxin.knowledge.document.domain.DocumentStatus;
 
 public record DocumentUploadResponse(
         Long documentId,
@@ -11,7 +12,7 @@ public record DocumentUploadResponse(
         String confidentialLevel,
         String sourceUri,
         String fileHash,
-        String status,
+        DocumentStatus status,
         String parseStatus,
         boolean duplicated
 ) {

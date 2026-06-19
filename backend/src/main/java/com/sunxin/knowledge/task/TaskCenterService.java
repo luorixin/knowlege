@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,8 @@ import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbEmbeddingIndexTaskRepository;
 import com.sunxin.knowledge.task.dto.UnifiedTaskResponse;
+import com.sunxin.knowledge.common.dto.PageResponse;
+import com.sunxin.knowledge.task.domain.TaskStatus;
 
 @Service
 public class TaskCenterService {
@@ -53,25 +56,33 @@ public class TaskCenterService {
     }
 
     @Transactional(readOnly = true)
-    public List<UnifiedTaskResponse> list(Long spaceId, String status, String taskCategory, Integer limit) {
-        int safeLimit = clampLimit(limit);
-        String normalizedStatus = blankToNull(status);
+    public PageResponse<UnifiedTaskResponse> list(Long spaceId, String status, String taskCategory, int page, int size) {
+        int safeLimit = clampLimit(size);
+        TaskStatus parsedStatus = status != null && !status.isBlank() ? TaskStatus.valueOf(status.trim()) : null;
         String normalizedCategory = normalizeCategory(taskCategory);
         List<Object> rawTasks = new ArrayList<>();
-        PageRequest pageRequest = PageRequest.of(0, safeLimit);
+        PageRequest pageRequest = PageRequest.of(page, safeLimit);
+        
+        long totalElements = 0;
         if (normalizedCategory == null || TYPE_PARSE_CHUNK.equals(normalizedCategory)) {
-            rawTasks.addAll(parseTaskRepository.findBySpaceIdAndOptionalStatus(spaceId, normalizedStatus, pageRequest));
+            Page<KbDocumentParseTask> p = parseTaskRepository.findBySpaceIdAndOptionalStatus(spaceId, parsedStatus, pageRequest);
+            rawTasks.addAll(p.getContent());
+            totalElements += p.getTotalElements();
         }
         if (normalizedCategory == null || TYPE_EMBEDDING_INDEX.equals(normalizedCategory)) {
-            rawTasks.addAll(embeddingTaskRepository.findBySpaceIdAndOptionalStatus(spaceId, normalizedStatus, pageRequest));
+            Page<KbEmbeddingIndexTask> p = embeddingTaskRepository.findBySpaceIdAndOptionalStatus(spaceId, parsedStatus, pageRequest);
+            rawTasks.addAll(p.getContent());
+            totalElements += p.getTotalElements();
         }
 
         Map<Long, KbDocument> documents = loadDocuments(rawTasks);
-        return rawTasks.stream()
+        List<UnifiedTaskResponse> results = rawTasks.stream()
                 .map(task -> toUnifiedTask(task, documents))
                 .sorted(Comparator.comparing(TaskCenterService::sortTime).reversed())
                 .limit(safeLimit)
                 .toList();
+                
+        return new PageResponse<>(results, page, safeLimit, totalElements, (int) Math.ceil((double) totalElements / safeLimit));
     }
 
     public UnifiedTaskResponse run(String taskKey) {

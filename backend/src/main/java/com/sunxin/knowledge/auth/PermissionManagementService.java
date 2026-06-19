@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,7 @@ public class PermissionManagementService {
         this.policyRepository = policyRepository;
     }
 
+    @Cacheable(value = "roles", key = "#tenantId")
     public List<RoleDto> getRoles(Long tenantId) {
         List<KbRole> roles = roleRepository.findByTenantId(tenantId);
         return roles.stream().map(role -> {
@@ -57,6 +60,7 @@ public class PermissionManagementService {
     }
 
     @Transactional
+    @CacheEvict(value = "roles", key = "#tenantId")
     public RoleDto createRole(Long tenantId, CreateRoleRequest req) {
         KbRole role = new KbRole();
         role.setTenantId(tenantId);
@@ -69,6 +73,7 @@ public class PermissionManagementService {
     }
 
     @Transactional
+    @CacheEvict(value = "roles", key = "#tenantId")
     public void deleteRole(Long tenantId, Long roleId) {
         KbRole role = roleRepository.findByTenantIdAndIdAndStatus(tenantId, roleId, "ACTIVE")
                 .orElseThrow(() -> new BadRequestException("Role not found"));
@@ -79,13 +84,13 @@ public class PermissionManagementService {
         roleRepository.save(role);
     }
 
+    @Cacheable(value = "members", key = "#tenantId")
     public List<MemberDto> getMembers(Long tenantId) {
         List<KbUserRole> userRoles = userRoleRepository.findByTenantId(tenantId);
-        List<KbUser> users = userRepository.findAll(); // Simplified for MVP
+        List<KbUser> users = userRepository.findByTenantIdAndStatus(tenantId, "ACTIVE");
         List<KbRole> roles = roleRepository.findByTenantId(tenantId);
 
         return users.stream()
-            .filter(u -> u.getTenantId().equals(tenantId) && "ACTIVE".equals(u.getStatus()))
             .map(u -> {
                 String roleName = userRoles.stream()
                     .filter(ur -> ur.getUserId().equals(u.getId()) && "ACTIVE".equals(ur.getStatus()))
@@ -106,6 +111,7 @@ public class PermissionManagementService {
     }
 
     @Transactional
+    @CacheEvict(value = "members", key = "#tenantId")
     public void addMember(Long tenantId, AddMemberRequest req) {
         KbUser user = userRepository.findByTenantIdAndUsername(tenantId, req.username())
             .orElseThrow(() -> new BadRequestException("User not found: " + req.username()));
@@ -124,6 +130,7 @@ public class PermissionManagementService {
         userRoleRepository.save(newRole);
     }
 
+    @Cacheable(value = "policies", key = "#tenantId + ':' + #spaceId")
     public List<PolicyDto> getPolicies(Long tenantId, Long spaceId) {
         List<KbPermissionPolicy> policies = policyRepository.findByTenantIdAndSpaceId(tenantId, spaceId);
         return policies.stream().map(p -> new PolicyDto(

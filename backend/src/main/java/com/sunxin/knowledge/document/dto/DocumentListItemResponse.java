@@ -2,6 +2,8 @@ package com.sunxin.knowledge.document.dto;
 
 import java.time.LocalDateTime;
 
+import com.sunxin.knowledge.document.domain.DocumentStatus;
+
 import com.sunxin.knowledge.persistence.entity.KbDocument;
 
 public record DocumentListItemResponse(
@@ -13,7 +15,7 @@ public record DocumentListItemResponse(
         String serviceLine,
         String confidentialLevel,
         String fileHash,
-        String status,
+        DocumentStatus status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

@@ -2,6 +2,8 @@ package com.sunxin.knowledge.task.dto;
 
 import java.time.LocalDateTime;
 
+import com.sunxin.knowledge.task.domain.TaskStatus;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
 
@@ -23,7 +25,7 @@ public record ParseTaskResponse(
         @JsonProperty("task_type")
         String taskType,
 
-        String status,
+        TaskStatus status,
 
         @JsonProperty("retry_count")
         Integer retryCount,
@@ -45,6 +47,8 @@ public record ParseTaskResponse(
 
         @JsonProperty("error_message")
         String errorMessage,
+
+        ParseMetadataResponse metadata,
 
         @JsonProperty("created_at")
         LocalDateTime createdAt,
@@ -69,6 +73,7 @@ public record ParseTaskResponse(
                 task.getFinishedAt(),
                 task.getErrorCode(),
                 task.getErrorMessage(),
+                ParseMetadataResponse.safeParse(task.getMetadataJson()),
                 task.getCreatedAt(),
                 task.getUpdatedAt()
         );

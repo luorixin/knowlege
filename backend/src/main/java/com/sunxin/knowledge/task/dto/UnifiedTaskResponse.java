@@ -2,6 +2,8 @@ package com.sunxin.knowledge.task.dto;
 
 import java.time.LocalDateTime;
 
+import com.sunxin.knowledge.task.domain.TaskStatus;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
@@ -41,7 +43,7 @@ public record UnifiedTaskResponse(
         @JsonProperty("chunk_id")
         Long chunkId,
 
-        String status,
+        TaskStatus status,
 
         @JsonProperty("retry_count")
         Integer retryCount,
@@ -79,6 +81,8 @@ public record UnifiedTaskResponse(
         @JsonProperty("error_message")
         String errorMessage,
 
+        ParseMetadataResponse metadata,
+
         @JsonProperty("created_at")
         LocalDateTime createdAt,
 
@@ -91,10 +95,6 @@ public record UnifiedTaskResponse(
         @JsonProperty("runnable")
         boolean runnable
 ) {
-
-    private static final String FAILED = "FAILED";
-    private static final String PENDING = "PENDING";
-    private static final String RUNNING = "RUNNING";
 
     public static UnifiedTaskResponse fromParseTask(KbDocumentParseTask task, KbDocument document) {
         return new UnifiedTaskResponse(
@@ -122,10 +122,11 @@ public record UnifiedTaskResponse(
                 task.getFinishedAt(),
                 task.getErrorCode(),
                 task.getErrorMessage(),
+                ParseMetadataResponse.safeParse(task.getMetadataJson()),
                 task.getCreatedAt(),
                 task.getUpdatedAt(),
-                FAILED.equals(task.getStatus()),
-                PENDING.equals(task.getStatus()) || RUNNING.equals(task.getStatus())
+                TaskStatus.FAILED == task.getStatus(),
+                TaskStatus.PENDING == task.getStatus() || TaskStatus.RUNNING == task.getStatus()
         );
     }
 
@@ -155,10 +156,11 @@ public record UnifiedTaskResponse(
                 task.getFinishedAt(),
                 task.getErrorCode(),
                 task.getErrorMessage(),
+                null,
                 task.getCreatedAt(),
                 task.getUpdatedAt(),
-                FAILED.equals(task.getStatus()),
-                PENDING.equals(task.getStatus()) || RUNNING.equals(task.getStatus())
+                TaskStatus.FAILED == task.getStatus(),
+                TaskStatus.PENDING == task.getStatus() || TaskStatus.RUNNING == task.getStatus()
         );
     }
 }

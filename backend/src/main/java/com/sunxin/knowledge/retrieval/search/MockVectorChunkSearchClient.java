@@ -7,6 +7,7 @@ import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import com.sunxin.knowledge.document.domain.DocumentStatus;
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
 import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 
@@ -14,7 +15,6 @@ import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 public class MockVectorChunkSearchClient implements VectorChunkSearchClient {
 
     private static final String ACTIVE = "ACTIVE";
-    private static final String DELETED = "DELETED";
 
     private final KbDocumentChunkRepository chunkRepository;
 
@@ -49,7 +49,7 @@ public class MockVectorChunkSearchClient implements VectorChunkSearchClient {
                         scope.serviceLine(),
                         scope.createdFrom(),
                         ACTIVE,
-                        DELETED,
+                        DocumentStatus.DELETED,
                         ACTIVE,
                         PageRequest.of(0, Math.max(limit * 20, 200))
                 )

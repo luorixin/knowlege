@@ -36,7 +36,12 @@ public class DocumentAccessFilter {
                 normalizeFilter(filters == null ? null : filters.docType()),
                 normalizeFilter(filters == null ? null : filters.industry()),
                 normalizeFilter(filters == null ? null : filters.serviceLine()),
-                createdFrom(filters == null ? null : filters.yearFrom())
+                createdFrom(filters == null ? null : filters.yearFrom()),
+                normalizeFilter(filters == null ? null : filters.blockType()),
+                normalizeFilter(filters == null ? null : filters.contentType()),
+                filters == null ? null : filters.minConfidence(),
+                normalizeFilter(filters == null ? null : filters.parser()),
+                normalizeFilter(filters == null ? null : filters.pageParseMode())
         );
     }
 

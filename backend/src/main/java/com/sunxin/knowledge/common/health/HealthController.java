@@ -20,8 +20,16 @@ public class HealthController {
             "audit"
     );
 
+    @org.springframework.beans.factory.annotation.Value("${knowledge.ai-service.embedding-model:NOT_SET}")
+    private String configuredModel;
+
     @GetMapping
     public HealthStatus health() {
         return new HealthStatus("knowledge-backend", "UP", RESERVED_MODULES);
+    }
+
+    @GetMapping("/model")
+    public String getModel() {
+        return "Configured Model: " + configuredModel + ", Env Var: " + System.getenv("AI_SERVICE_EMBEDDING_MODEL");
     }
 }

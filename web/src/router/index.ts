@@ -53,6 +53,7 @@ const router = createRouter({
       path: '/eval',
       name: 'eval',
       component: EvalDatasetsView,
+      meta: { requireAdmin: true },
     },
     {
       path: '/tasks',
@@ -63,17 +64,29 @@ const router = createRouter({
       path: '/permissions',
       name: 'permissions',
       component: PermissionsView,
+      meta: { requireAdmin: true },
     },
   ],
 })
 
 router.beforeEach((to) => {
   if (to.meta.public) return true
-  const hasUser = Boolean(window.localStorage.getItem('knowledge-user'))
-  if (!hasUser) {
+  const userJson = window.localStorage.getItem('knowledge-user')
+  if (!userJson) {
     return {
       path: '/login',
       query: { redirect: to.fullPath },
+    }
+  }
+  
+  if (to.meta.requireAdmin) {
+    try {
+      const user = JSON.parse(userJson)
+      if (user.role !== 'ADMIN' && user.role !== 'KNOWLEDGE_ADMIN') {
+        return { path: '/knowledge-bases' }
+      }
+    } catch {
+      return { path: '/login' }
     }
   }
   return true

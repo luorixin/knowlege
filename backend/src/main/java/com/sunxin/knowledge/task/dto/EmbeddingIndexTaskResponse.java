@@ -2,6 +2,8 @@ package com.sunxin.knowledge.task.dto;
 
 import java.time.LocalDateTime;
 
+import com.sunxin.knowledge.task.domain.TaskStatus;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sunxin.knowledge.persistence.entity.KbEmbeddingIndexTask;
 
@@ -38,7 +40,7 @@ public record EmbeddingIndexTaskResponse(
         @JsonProperty("vector_collection")
         String vectorCollection,
 
-        String status,
+        TaskStatus status,
 
         @JsonProperty("retry_count")
         Integer retryCount,

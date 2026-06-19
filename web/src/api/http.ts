@@ -8,26 +8,38 @@ export const http = axios.create({
 })
 
 http.interceptors.request.use((config) => {
-  const raw = window.localStorage.getItem('knowledge-user')
-  if (!raw) {
-    return config
+  const token = window.localStorage.getItem('knowledge-token')
+  if (token) {
+    config.headers.set('Authorization', `Bearer ${token}`)
   }
 
-  try {
-    const user = JSON.parse(raw) as { userId?: string; tenantId?: string }
-    if (user.userId) {
-      config.headers.set('X-User-Id', String(user.userId))
+  // Fallback for X-User-Id / X-Tenant-Id for backward compatibility
+  const raw = window.localStorage.getItem('knowledge-user')
+  if (raw) {
+    try {
+      const user = JSON.parse(raw) as { userId?: string; tenantId?: string }
+      if (user.userId) config.headers.set('X-User-Id', String(user.userId))
+      if (user.tenantId) config.headers.set('X-Tenant-Id', String(user.tenantId))
+    } catch {
+      window.localStorage.removeItem('knowledge-user')
     }
-    if (user.tenantId) {
-      config.headers.set('X-Tenant-Id', String(user.tenantId))
-    }
-  } catch {
-    window.localStorage.removeItem('knowledge-user')
   }
 
   return config
 })
-
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      window.localStorage.removeItem('knowledge-token')
+      window.localStorage.removeItem('knowledge-user')
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
 export function unwrapResponse<T>(response: AxiosResponse<ApiEnvelope<T>>): T {
   const envelope = response.data
   if (envelope.code && envelope.code !== 'OK') {

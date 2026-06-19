@@ -4,7 +4,11 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+
+import com.sunxin.knowledge.task.domain.TaskStatus;
 
 @Entity
 @Table(name = "kb_document_parse_task")
@@ -25,8 +29,9 @@ public class KbDocumentParseTask extends AuditableEntity {
     @Column(name = "task_type", nullable = false, length = 64)
     private String taskType = "PARSE_DOCUMENT";
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
-    private String status = "PENDING";
+    private TaskStatus status = TaskStatus.PENDING;
 
     @Column(name = "priority", nullable = false)
     private Integer priority = 0;
@@ -95,11 +100,11 @@ public class KbDocumentParseTask extends AuditableEntity {
         this.taskType = taskType;
     }
 
-    public String getStatus() {
+    public TaskStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(TaskStatus status) {
         this.status = status;
     }
 

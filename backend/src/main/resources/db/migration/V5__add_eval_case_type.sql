@@ -1,0 +1,1 @@
+ALTER TABLE kb_eval_case ADD COLUMN case_type VARCHAR(32) NOT NULL DEFAULT 'QA_RAG';

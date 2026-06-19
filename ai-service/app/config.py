@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     vlm_temperature: float = 0.2
     ai_vlm_endpoint: str = ""
     parser_temp_dir: str = "/tmp/knowledge-ai"
+    
+    # --- Parser Limits and Fail Modes ---
+    parser_max_ocr_pages: int = Field(default=50, description="Max pages to OCR per document")
+    parser_max_vlm_images: int = Field(default=20, description="Max images to VLM caption per document")
+    vlm_fail_mode: str = Field(default="partial_success", description="VLM fail mode: partial_success, ignore, or fail")
+    ocr_fail_mode: str = Field(default="partial_success", description="OCR fail mode: partial_success or fail")
 
     # --- Provider switches (mock = no external dependency) ---------------
     embedding_provider: str = "mock"

@@ -1,5 +1,8 @@
 package com.sunxin.knowledge.integration.opensearch;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,6 +27,7 @@ public class OpenSearchKeywordSearchClient implements KeywordSearchClient {
 
     private final RestClient restClient;
     private final OpenSearchProperties properties;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     public OpenSearchKeywordSearchClient(OpenSearchProperties properties) {
         this.properties = properties;
@@ -85,6 +89,24 @@ public class OpenSearchKeywordSearchClient implements KeywordSearchClient {
         source.put("content", document.content());
         source.put("metadata_json", document.metadataJson());
         source.put("status", "ACTIVE");
+        
+        if (document.metadataJson() != null && !document.metadataJson().isBlank()) {
+            try {
+                JsonNode node = OBJECT_MAPPER.readTree(document.metadataJson());
+                if (node.hasNonNull("block_type")) source.put("block_type", normalize(node.get("block_type").asText(null)));
+                if (node.hasNonNull("source_uri")) source.put("source_uri", normalize(node.get("source_uri").asText(null)));
+                if (node.hasNonNull("image_uri")) source.put("image_uri", normalize(node.get("image_uri").asText(null)));
+                if (node.hasNonNull("confidence")) source.put("confidence", node.get("confidence").asDouble());
+                if (node.hasNonNull("page_parse_mode")) source.put("page_parse_mode", normalize(node.get("page_parse_mode").asText(null)));
+                if (node.hasNonNull("sheet_name")) source.put("sheet_name", normalize(node.get("sheet_name").asText(null)));
+                if (node.hasNonNull("table_region")) source.put("table_region", normalize(node.get("table_region").asText(null)));
+                if (node.hasNonNull("caption_provider")) source.put("caption_provider", normalize(node.get("caption_provider").asText(null)));
+                if (node.hasNonNull("content_type")) source.put("content_type", normalize(node.get("content_type").asText(null)));
+                if (node.hasNonNull("parser")) source.put("parser", normalize(node.get("parser").asText(null)));
+            } catch (Exception ignore) {
+            }
+        }
+        
         return source;
     }
 
@@ -106,7 +128,17 @@ public class OpenSearchKeywordSearchClient implements KeywordSearchClient {
                                 Map.entry("page_no", Map.of("type", "integer")),
                                 Map.entry("section_title", Map.of("type", "text")),
                                 Map.entry("content", Map.of("type", "text")),
-                                Map.entry("status", Map.of("type", "keyword"))
+                                Map.entry("status", Map.of("type", "keyword")),
+                                Map.entry("block_type", Map.of("type", "keyword")),
+                                Map.entry("source_uri", Map.of("type", "keyword")),
+                                Map.entry("image_uri", Map.of("type", "keyword")),
+                                Map.entry("confidence", Map.of("type", "float")),
+                                Map.entry("page_parse_mode", Map.of("type", "keyword")),
+                                Map.entry("sheet_name", Map.of("type", "keyword")),
+                                Map.entry("table_region", Map.of("type", "keyword")),
+                                Map.entry("caption_provider", Map.of("type", "keyword")),
+                                Map.entry("content_type", Map.of("type", "keyword")),
+                                Map.entry("parser", Map.of("type", "keyword"))
                         )
                 )
         );

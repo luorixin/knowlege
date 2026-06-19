@@ -28,6 +28,8 @@ class OpenAICompatibleHTTPProvider:
         if request.dimensions or self.default_dimension:
             payload["dimensions"] = request.dimensions or self.default_dimension
         
+        print("EMBEDDING PAYLOAD:", payload, flush=True)
+        
         try:
             with httpx.Client(timeout=get_settings().ai_request_timeout, trust_env=False) as client:
                 response = client.post(url, headers=headers, json=payload)

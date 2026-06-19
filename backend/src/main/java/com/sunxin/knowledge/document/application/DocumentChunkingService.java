@@ -28,6 +28,7 @@ import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
 import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
 import com.sunxin.knowledge.persistence.entity.KbDocumentVersion;
+import com.sunxin.knowledge.task.domain.TaskStatus;
 import com.sunxin.knowledge.persistence.entity.KbEmbeddingIndexTask;
 import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository;
@@ -40,8 +41,6 @@ public class DocumentChunkingService {
 
     private static final String ACTIVE = "ACTIVE";
     private static final String DELETED = "DELETED";
-    private static final String COMPLETED = "COMPLETED";
-    private static final String PENDING = "PENDING";
 
     private final KbDocumentRepository documentRepository;
     private final KbDocumentVersionRepository versionRepository;
@@ -197,7 +196,7 @@ public class DocumentChunkingService {
 
         version.setChunkCount(savedChunks.size());
         version.setTotalTokens(totalTokens);
-        version.setParseStatus(COMPLETED);
+        version.setParseStatus("COMPLETED");
         version.setUpdatedBy(actorUserId);
         versionRepository.save(version);
 
@@ -235,7 +234,7 @@ public class DocumentChunkingService {
         if (task.getStartedAt() == null) {
             task.setStartedAt(now);
         }
-        task.setStatus(COMPLETED);
+        task.setStatus(TaskStatus.COMPLETED);
         task.setProgressPercent(100);
         task.setFinishedAt(now);
         task.setErrorCode(null);
@@ -266,7 +265,7 @@ public class DocumentChunkingService {
             task.setEmbeddingDimension(aiProperties.getEmbeddingDimension() != null ? aiProperties.getEmbeddingDimension() : 128);
             task.setIndexName("knowledge_chunk_keyword");
             task.setVectorCollection("knowledge_chunk_vector");
-            task.setStatus(PENDING);
+            task.setStatus(TaskStatus.PENDING);
             task.setPriority(0);
             task.setRetryCount(0);
             task.setProgressPercent(0);
@@ -282,7 +281,7 @@ public class DocumentChunkingService {
     }
 
     private KbDocument requireActiveDocument(Long documentId) {
-        return documentRepository.findByIdAndStatusNot(documentId, DELETED)
+        return documentRepository.findByIdAndStatusNot(documentId, com.sunxin.knowledge.document.domain.DocumentStatus.DELETED)
                 .orElseThrow(() -> new NotFoundException("Document not found"));
     }
 

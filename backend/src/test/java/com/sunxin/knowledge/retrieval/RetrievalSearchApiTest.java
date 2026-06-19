@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.jayway.jsonpath.JsonPath;
 import com.sunxin.knowledge.common.id.IdGenerator;
+import com.sunxin.knowledge.document.domain.DocumentStatus;
 import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
 import com.sunxin.knowledge.persistence.entity.KbPermissionPolicy;
@@ -181,7 +182,7 @@ class RetrievalSearchApiTest {
         document.setStorageUri(document.getSourceUri());
         document.setFileHash("hash-" + document.getId());
         document.setCurrentVersionId(idGenerator.nextId());
-        document.setStatus("ACTIVE");
+        document.setStatus(DocumentStatus.ACTIVE);
         return documentRepository.save(document);
     }
 

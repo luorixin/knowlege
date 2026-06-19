@@ -2,11 +2,15 @@ package com.sunxin.knowledge.persistence.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+
+import com.sunxin.knowledge.document.domain.DocumentStatus;
 
 @Entity
 @Table(name = "kb_document")
-public class KbDocument extends AuditableEntity {
+public class KbDocument extends AuditableEntity implements java.io.Serializable {
 
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
@@ -44,8 +48,9 @@ public class KbDocument extends AuditableEntity {
     @Column(name = "current_version_id")
     private Long currentVersionId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
-    private String status = "UPLOADED";
+    private DocumentStatus status = DocumentStatus.UPLOADED;
 
     @Column(name = "metadata_json", columnDefinition = "TEXT")
     private String metadataJson;
@@ -146,11 +151,11 @@ public class KbDocument extends AuditableEntity {
         this.currentVersionId = currentVersionId;
     }
 
-    public String getStatus() {
+    public DocumentStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(DocumentStatus status) {
         this.status = status;
     }
 

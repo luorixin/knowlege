@@ -118,8 +118,15 @@ public class OpenSearchChunkSearchClient implements KeywordChunkSearchClient {
         addOptionalFilter(filters, "doc_type", scope.docType());
         addOptionalFilter(filters, "industry", scope.industry());
         addOptionalFilter(filters, "service_line", scope.serviceLine());
+        addOptionalFilter(filters, "block_type", scope.blockType());
+        addOptionalFilter(filters, "content_type", scope.contentType());
+        addOptionalFilter(filters, "parser", scope.parser());
+        addOptionalFilter(filters, "page_parse_mode", scope.pageParseMode());
         if (scope.createdFrom() != null) {
             filters.add(Map.of("range", Map.of("created_at", Map.of("gte", scope.createdFrom().toString()))));
+        }
+        if (scope.minConfidence() != null) {
+            filters.add(Map.of("range", Map.of("confidence", Map.of("gte", scope.minConfidence()))));
         }
         return Map.of(
                 "size", limit,

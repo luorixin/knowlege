@@ -8,4 +8,4 @@ public record PolicyDto(
     String resource,
     List<String> actions,
     Boolean isSystem
-) {}
+) implements java.io.Serializable {}

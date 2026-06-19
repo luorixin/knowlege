@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import com.sunxin.knowledge.auth.CurrentUser;
 import com.sunxin.knowledge.auth.CurrentUserResolver;
 import com.sunxin.knowledge.common.api.ApiResponse;
+import com.sunxin.knowledge.common.dto.PageResponse;
 import com.sunxin.knowledge.document.application.DocumentChunkingService;
 import com.sunxin.knowledge.document.application.DocumentDesensitizationService;
 import com.sunxin.knowledge.document.application.DocumentIngestionService;
@@ -38,8 +39,11 @@ import com.sunxin.knowledge.document.dto.RebuildChunksResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
+import org.springframework.web.bind.annotation.RequestMapping;
+
 @Validated
 @RestController
+@RequestMapping("/api/v1")
 public class DocumentController {
 
     private final DocumentIngestionService documentService;
@@ -60,7 +64,7 @@ public class DocumentController {
     }
 
     @PostMapping(
-            value = "/api/v1/kb-spaces/{spaceId}/documents",
+            value = "/kb-spaces/{spaceId}/documents",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public ApiResponse<DocumentUploadResponse> upload(
@@ -83,17 +87,19 @@ public class DocumentController {
         return ApiResponse.ok(documentService.upload(spaceId, file, request, currentUser));
     }
 
-    @GetMapping("/api/v1/kb-spaces/{spaceId}/documents")
-    public ApiResponse<List<DocumentListItemResponse>> listBySpace(
+    @GetMapping("/kb-spaces/{spaceId}/documents")
+    public ApiResponse<PageResponse<DocumentListItemResponse>> listBySpace(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
-            @PathVariable @NotNull Long spaceId
+            @PathVariable @NotNull Long spaceId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
         CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId);
-        return ApiResponse.ok(documentService.listBySpace(spaceId, currentUser));
+        return ApiResponse.ok(documentService.listBySpace(spaceId, page, size, currentUser));
     }
 
-    @GetMapping("/api/v1/documents/{documentId}")
+    @GetMapping("/documents/{documentId}")
     public ApiResponse<DocumentDetailResponse> detail(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -103,7 +109,7 @@ public class DocumentController {
         return ApiResponse.ok(documentService.detail(documentId, currentUser));
     }
 
-    @DeleteMapping("/api/v1/documents/{documentId}")
+    @DeleteMapping("/documents/{documentId}")
     public ApiResponse<DocumentDeleteResponse> delete(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -113,7 +119,7 @@ public class DocumentController {
         return ApiResponse.ok(documentService.delete(documentId, currentUser));
     }
 
-    @GetMapping("/api/v1/documents/{documentId}/download")
+    @GetMapping("/documents/{documentId}/download")
     public ResponseEntity<Resource> download(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -145,7 +151,7 @@ public class DocumentController {
                 .body(file);
     }
 
-    @GetMapping("/api/v1/documents/{documentId}/parse-status")
+    @GetMapping("/documents/{documentId}/parse-status")
     public ApiResponse<DocumentParseStatusResponse> parseStatus(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -155,7 +161,7 @@ public class DocumentController {
         return ApiResponse.ok(documentService.parseStatus(documentId, currentUser));
     }
 
-    @PostMapping("/api/v1/documents/{documentId}/chunks/rebuild")
+    @PostMapping("/documents/{documentId}/chunks/rebuild")
     public ApiResponse<RebuildChunksResponse> rebuildChunks(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -166,7 +172,7 @@ public class DocumentController {
         return ApiResponse.ok(chunkingService.rebuildChunks(documentId, request, currentUser));
     }
 
-    @GetMapping("/api/v1/documents/{documentId}/chunks")
+    @GetMapping("/documents/{documentId}/chunks")
     public ApiResponse<List<com.sunxin.knowledge.document.dto.ChunkResponse>> listChunks(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -176,7 +182,7 @@ public class DocumentController {
         return ApiResponse.ok(chunkingService.listChunks(documentId, currentUser));
     }
 
-    @GetMapping("/api/v1/documents/{documentId}/desensitization-mappings")
+    @GetMapping("/documents/{documentId}/desensitization-mappings")
     public ApiResponse<List<DesensitizationMappingResponse>> desensitizationMappings(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.schemas.document_parse import DocumentParseRequest
 from app.services.parser.errors import OcrProviderError
+from app.services.parser.image_utils import extract_image_from_uri
 from app.services.parser.base import OcrResult, VLMCaptionResult
 from app.services.parser.structured import OCRParser, ParserRouter, StructuredDocumentParser
 
@@ -35,7 +36,7 @@ def test_parse_txt_document(tmp_path: Path) -> None:
     assert payload["pages"] == [
         {
             "page_no": 1,
-            "section_title": "sample.txt",
+            "section_title": "doc-1",
             "content_type": "text",
             "content": "First line\nSecond line",
             "metadata": {"file_type": "txt"},
@@ -111,7 +112,7 @@ def test_parse_pdf_extracts_page_text(tmp_path: Path) -> None:
     assert payload["metadata"]["parser"] == "PdfNativeParser"
     assert payload["blocks"][0]["block_type"] == "paragraph"
     assert payload["blocks"][0]["page_no"] == 1
-    assert payload["blocks"][0]["source_uri"] == str(file_path)
+    assert payload["blocks"][0]["source_uri"] == "doc:doc-pdf/version:v1/page:1"
     assert "Hello PDF" in payload["blocks"][0]["markdown"]
 
 
@@ -281,7 +282,7 @@ def test_parse_pptx_extracts_slide_text(tmp_path: Path) -> None:
     assert payload["metadata"]["parser"] == "PptParser"
     assert payload["blocks"][0]["metadata"]["slide_text"] == "Slide Title\nSlide bullet"
     assert payload["blocks"][0]["metadata"]["slide_summary"] == "Slide Title"
-    assert payload["blocks"][0]["image_uri"].endswith("#slide-1")
+    assert payload["blocks"][0]["image_uri"] == "doc:doc-pptx/version:v1/slide:1"
 
 
 def test_pptx_empty_slide_uses_structured_vlm_caption_and_table_block(tmp_path: Path) -> None:
@@ -326,6 +327,34 @@ def test_pptx_empty_slide_uses_structured_vlm_caption_and_table_block(tmp_path: 
     assert figure_blocks[1].content == "VLM caption for slide"
     assert figure_blocks[1].metadata["caption_provider"] == "test-vlm"
     assert figure_blocks[1].confidence == 0.91
+
+
+def test_extract_image_from_pptx_slide_embedded_media(tmp_path: Path) -> None:
+    file_path = tmp_path / "image-slide.pptx"
+    _write_zip_bytes(
+        file_path,
+        {
+            "ppt/slides/slide1.xml": b"""
+                <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+                  <p:cSld><p:spTree></p:spTree></p:cSld>
+                </p:sld>
+            """,
+            "ppt/slides/_rels/slide1.xml.rels": b"""
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1"
+                    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+                    Target="../media/image1.png"/>
+                </Relationships>
+            """,
+            "ppt/media/image1.png": _one_pixel_png(),
+        },
+    )
+
+    image = extract_image_from_uri(f"{file_path}#slide-1")
+
+    assert image is not None
+    assert image.shape[0] == 1
+    assert image.shape[1] == 1
 
 
 def test_parse_xlsx_extracts_rows_as_table_text(tmp_path: Path) -> None:
@@ -444,7 +473,7 @@ def test_parse_image_uses_image_parser_with_mock_caption(tmp_path: Path) -> None
     assert result.metadata["parser"] == "ImageParser"
     assert result.pages[0].content_type == "image"
     assert result.blocks[0].block_type == "figure"
-    assert result.blocks[0].image_uri == str(file_path)
+    assert result.blocks[0].image_uri == "doc:doc-image/version:v1/image:1"
     assert "Mock image caption" in result.blocks[0].content
 
 
@@ -716,6 +745,20 @@ def _write_zip(path: Path, files: dict[str, str]) -> None:
     with zipfile.ZipFile(path, "w") as archive:
         for name, content in files.items():
             archive.writestr(name, content.strip())
+
+
+def _write_zip_bytes(path: Path, files: dict[str, bytes]) -> None:
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, content in files.items():
+            archive.writestr(name, content.strip())
+
+
+def _one_pixel_png() -> bytes:
+    import base64
+
+    return base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+    )
 
 
 def _minimal_pdf_bytes(text: str) -> bytes:

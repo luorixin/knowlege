@@ -20,28 +20,28 @@ export interface CreateEvalCasePayload {
 }
 
 export async function createEvalDataset(payload: CreateEvalDatasetPayload): Promise<EvalDataset> {
-  return unwrapResponse(await http.post('/api/eval/dataset', payload))
+  return unwrapResponse(await http.post('/api/v1/eval/dataset', payload))
 }
 
 export async function listEvalDatasets(): Promise<EvalDataset[]> {
-  return unwrapResponse(await http.get('/api/eval/dataset'))
+  return unwrapResponse(await http.get('/api/v1/eval/dataset'))
 }
 
 export async function listEvalCases(datasetId: EntityId): Promise<EvalCase[]> {
-  return unwrapResponse(await http.get(`/api/eval/dataset/${datasetId}/cases`))
+  return unwrapResponse(await http.get(`/api/v1/eval/dataset/${datasetId}/cases`))
 }
 
 export async function createEvalCase(payload: CreateEvalCasePayload): Promise<EvalCase> {
-  return unwrapResponse(await http.post('/api/eval/case', payload))
+  return unwrapResponse(await http.post('/api/v1/eval/case', payload))
 }
 
 export async function runEval(datasetId: EntityId, topK = 20): Promise<EvalRunResult> {
-  return unwrapResponse(await http.post('/api/eval/run', {
+  return unwrapResponse(await http.post('/api/v1/eval/run', {
     dataset_id: datasetId,
     top_k: topK,
   }))
 }
 
 export async function getEvalResult(runId: string): Promise<EvalRunResult> {
-  return unwrapResponse(await http.get(`/api/eval/result/${runId}`))
+  return unwrapResponse(await http.get(`/api/v1/eval/result/${runId}`))
 }

@@ -61,6 +61,7 @@ public class EvalService {
     private final RetrievalSearchService retrievalSearchService;
     private final EvalAnswerClient answerClient;
     private final RuleBasedRagEvaluator evaluator;
+    private final RuleBasedParserEvaluator parserEvaluator;
     private final EvalReportAggregator aggregator;
     private final AccessControlService accessControlService;
     private final IdGenerator idGenerator;
@@ -76,6 +77,7 @@ public class EvalService {
             RetrievalSearchService retrievalSearchService,
             EvalAnswerClient answerClient,
             RuleBasedRagEvaluator evaluator,
+            RuleBasedParserEvaluator parserEvaluator,
             EvalReportAggregator aggregator,
             AccessControlService accessControlService,
             IdGenerator idGenerator,
@@ -90,6 +92,7 @@ public class EvalService {
         this.retrievalSearchService = retrievalSearchService;
         this.answerClient = answerClient;
         this.evaluator = evaluator;
+        this.parserEvaluator = parserEvaluator;
         this.aggregator = aggregator;
         this.accessControlService = accessControlService;
         this.idGenerator = idGenerator;
@@ -140,13 +143,17 @@ public class EvalService {
                 safe(request.expectedChunkIds()),
                 Boolean.TRUE.equals(request.expectNoAnswer()),
                 request.filters(),
-                request.tags() == null ? List.of() : request.tags()
+                request.tags() == null ? List.of() : request.tags(),
+                null,
+                null,
+                null
         );
 
         KbEvalCase evalCase = new KbEvalCase();
         evalCase.setId(idGenerator.nextId());
         evalCase.setTenantId(dataset.getTenantId());
         evalCase.setDatasetId(dataset.getId());
+        evalCase.setCaseType(request.caseType() != null ? request.caseType() : "QA_RAG");
         evalCase.setQuestion(request.question().trim());
         evalCase.setExpectedAnswer(blankToNull(request.expectedAnswer()));
         evalCase.setExpectedDocIds(joinIds(spec.expectedDocIds()));
@@ -175,26 +182,33 @@ public class EvalService {
         List<EvalCaseReportResponse> reports = new ArrayList<>();
         for (KbEvalCase evalCase : cases) {
             EvalCaseSpec spec = spec(evalCase);
-            RetrievalSearchResponse retrieval = retrievalSearchService.search(
-                    new RetrievalSearchRequest(evalCase.getQuestion(), space.getId(), spec.filters(), topK, java.util.List.of()),
-                    resolvedUser
-            );
-            AgentChatResponse answer = answerClient.answer(space.getId(), evalCase.getQuestion(), spec, resolvedUser);
-            int inaccessibleExpectedTargets = inaccessibleExpectedTargets(spec, resolvedUser);
-            int unauthorizedCitations = unauthorizedCitations(answer, resolvedUser);
-            int unauthorizedRetrieved = unauthorizedRetrieved(retrieval, resolvedUser);
-            EvalCaseReportResponse report = evaluator.evaluate(
-                    evalCase.getId(),
-                    evalCase.getQuestion(),
-                    spec,
-                    retrieval,
-                    answer,
-                    inaccessibleExpectedTargets,
-                    unauthorizedCitations,
-                    unauthorizedRetrieved
-            );
-            reports.add(report);
-            saveResult(dataset, evalCase, runId, answer, report);
+            
+            if ("PARSER_QUALITY".equals(evalCase.getCaseType())) {
+                EvalCaseReportResponse report = parserEvaluator.evaluate(evalCase.getId(), evalCase.getQuestion(), spec, resolvedUser);
+                reports.add(report);
+                saveResult(dataset, evalCase, runId, null, report, "PARSER_QUALITY");
+            } else {
+                RetrievalSearchResponse retrieval = retrievalSearchService.search(
+                        new RetrievalSearchRequest(evalCase.getQuestion(), space.getId(), spec.filters(), topK, java.util.List.of()),
+                        resolvedUser
+                );
+                AgentChatResponse answer = answerClient.answer(space.getId(), evalCase.getQuestion(), spec, resolvedUser);
+                int inaccessibleExpectedTargets = inaccessibleExpectedTargets(spec, resolvedUser);
+                int unauthorizedCitations = unauthorizedCitations(answer, resolvedUser);
+                int unauthorizedRetrieved = unauthorizedRetrieved(retrieval, resolvedUser);
+                EvalCaseReportResponse report = evaluator.evaluate(
+                        evalCase.getId(),
+                        evalCase.getQuestion(),
+                        spec,
+                        retrieval,
+                        answer,
+                        inaccessibleExpectedTargets,
+                        unauthorizedCitations,
+                        unauthorizedRetrieved
+                );
+                reports.add(report);
+                saveResult(dataset, evalCase, runId, answer, report, "RULE_BASED");
+            }
         }
 
         EvalMetricsResponse metrics = aggregator.aggregate(reports);
@@ -221,7 +235,8 @@ public class EvalService {
             KbEvalCase evalCase,
             String runId,
             AgentChatResponse answer,
-            EvalCaseReportResponse report
+            EvalCaseReportResponse report,
+            String evaluatorType
     ) {
         KbEvalResult result = new KbEvalResult();
         result.setId(idGenerator.nextId());
@@ -229,12 +244,12 @@ public class EvalService {
         result.setDatasetId(dataset.getId());
         result.setCaseId(evalCase.getId());
         result.setRunId(runId);
-        result.setQuerySessionId(answer.sessionId());
-        result.setActualAnswer(answer.answer());
+        result.setQuerySessionId(answer != null ? answer.sessionId() : null);
+        result.setActualAnswer(answer != null ? answer.answer() : null);
         result.setScore(BigDecimal.valueOf(report.recallHit() ? 1.0 : 0.0));
         result.setHitCount(report.recallHit() ? 1 : 0);
         result.setCitationHitCount(report.citationAccuracy() > 0 ? 1 : 0);
-        result.setEvaluatorType("RULE_BASED");
+        result.setEvaluatorType(evaluatorType);
         result.setEvaluatorModel("mvp-rule-evaluator");
         result.setStatus(COMPLETED);
         result.setDetailJson(toJson(report));
@@ -249,9 +264,9 @@ public class EvalService {
                     .ifPresent(expectedDocIds::add);
         }
         int count = 0;
-        for (Long docId : expectedDocIds) {
-            KbDocument document = documentRepository.findById(docId).orElse(null);
-            if (document != null && !accessControlService.canAccessDocument(document, user, "document_read")) {
+        List<KbDocument> documents = documentRepository.findAllById(expectedDocIds);
+        for (KbDocument document : documents) {
+            if (!accessControlService.canAccessDocument(document, user, "document_read")) {
                 count++;
             }
         }
@@ -263,9 +278,10 @@ public class EvalService {
             return 0;
         }
         int count = 0;
-        for (AgentCitationResponse citation : answer.citations()) {
-            KbDocument document = documentRepository.findById(citation.docId()).orElse(null);
-            if (document != null && !accessControlService.canAccessDocument(document, user, "document_read")) {
+        Set<Long> docIds = answer.citations().stream().map(AgentCitationResponse::docId).collect(java.util.stream.Collectors.toSet());
+        List<KbDocument> documents = documentRepository.findAllById(docIds);
+        for (KbDocument document : documents) {
+            if (!accessControlService.canAccessDocument(document, user, "document_read")) {
                 count++;
             }
         }
@@ -280,9 +296,9 @@ public class EvalService {
                 .map(com.sunxin.knowledge.retrieval.dto.RetrievalSearchResult::docId)
                 .collect(java.util.stream.Collectors.toSet());
         int count = 0;
-        for (Long docId : docIds) {
-            KbDocument document = documentRepository.findById(docId).orElse(null);
-            if (document != null && !accessControlService.canAccessDocument(document, user, "document_read")) {
+        List<KbDocument> documents = documentRepository.findAllById(docIds);
+        for (KbDocument document : documents) {
+            if (!accessControlService.canAccessDocument(document, user, "document_read")) {
                 count++;
             }
         }
@@ -329,7 +345,10 @@ public class EvalService {
                         metadata.getOrDefault("tags", List.of()),
                         new TypeReference<List<String>>() {
                         }
-                )
+                ),
+                metadata.get("expected_block_count") != null ? ((Number) metadata.get("expected_block_count")).intValue() : null,
+                metadata.get("expected_table_count") != null ? ((Number) metadata.get("expected_table_count")).intValue() : null,
+                metadata.get("expected_error_count") != null ? ((Number) metadata.get("expected_error_count")).intValue() : null
         );
     }
 

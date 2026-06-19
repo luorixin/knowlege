@@ -28,7 +28,7 @@
           <el-option label="全部状态" value="" />
           <el-option label="待处理" value="PENDING" />
           <el-option label="运行中" value="RUNNING" />
-          <el-option label="已完成" value="COMPLETED" />
+          <el-option label="部分成功" value="PARTIAL_SUCCESS" />
           <el-option label="失败" value="FAILED" />
         </el-select>
         <el-button plain :icon="Refresh" :loading="loading" @click="loadTasks">刷新</el-button>
@@ -43,7 +43,7 @@
       :closable="false"
     />
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-2">
       <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-slate-400">
         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">总任务数</span>
         <strong class="text-3xl font-bold text-slate-800">{{ rows.length }}</strong>
@@ -55,6 +55,10 @@
       <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-blue-400">
         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">运行中 (RUNNING)</span>
         <strong class="text-3xl font-bold text-blue-600">{{ statusCount.RUNNING }}</strong>
+      </div>
+      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-orange-400" :class="{'opacity-75 grayscale': statusCount.PARTIAL_SUCCESS === 0}">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">部分成功 (PARTIAL)</span>
+        <strong class="text-3xl font-bold text-orange-500">{{ statusCount.PARTIAL_SUCCESS }}</strong>
       </div>
       <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-red-500" :class="{'opacity-75 grayscale': statusCount.FAILED === 0}">
         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">失败 (FAILED)</span>
@@ -106,7 +110,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="模型 / 索引目标" min-width="220" show-overflow-tooltip>
+        <el-table-column label="模型 / 解析详情" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="target-cell">
               <span>{{ modelLabel(row) }}</span>
@@ -148,7 +152,7 @@
                 重试
               </el-button>
               <el-button
-                v-if="row.error_message"
+                v-if="row.error_message || (row.metadata && row.metadata.errors && row.metadata.errors.length > 0)"
                 link
                 type="danger"
                 :icon="WarningFilled"
@@ -156,7 +160,7 @@
               >
                 错误
               </el-button>
-              <span v-if="!row.runnable && !row.retryable && !row.error_message" class="muted-action">-</span>
+              <span v-if="!row.runnable && !row.retryable && !row.error_message && (!row.metadata || !row.metadata.errors || row.metadata.errors.length === 0)" class="muted-action">-</span>
             </div>
           </template>
         </el-table-column>
@@ -180,12 +184,25 @@
         <div class="stitch-card !p-4 bg-slate-50 border-slate-200">
           <div class="flex items-center gap-2 mb-2">
             <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">错误代码</span>
-            <el-tag size="small" type="danger" effect="plain" class="font-mono bg-white">{{ currentErrorTask.error_code || 'UNKNOWN_ERROR' }}</el-tag>
+            <el-tag size="small" type="danger" effect="plain" class="font-mono bg-white">{{ currentErrorTask.error_code || 'PARTIAL_ERROR' }}</el-tag>
           </div>
-          <div class="mt-4">
+          <div class="mt-4" v-if="currentErrorTask.error_message">
             <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">详细堆栈与日志</span>
-            <div class="bg-slate-900 rounded-lg p-4 overflow-auto max-h-[300px]">
-              <code class="text-red-400 font-mono text-sm leading-relaxed whitespace-pre-wrap break-all">{{ currentErrorTask.error_message || 'No explicit error message provided.' }}</code>
+            <div class="bg-slate-900 rounded-lg p-4 overflow-auto max-h-[200px]">
+              <code class="text-red-400 font-mono text-sm leading-relaxed whitespace-pre-wrap break-all">{{ currentErrorTask.error_message }}</code>
+            </div>
+          </div>
+          
+          <div class="mt-4" v-if="currentErrorTask.metadata?.errors?.length">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">页面解析错误 ({{ currentErrorTask.metadata.errors.length }})</span>
+            <div class="bg-red-50 border border-red-100 rounded-lg max-h-[300px] overflow-auto">
+              <div v-for="(err, idx) in currentErrorTask.metadata.errors" :key="idx" class="p-3 border-b border-red-100 last:border-0">
+                <div class="flex gap-2 items-start mb-1">
+                  <el-tag size="small" type="danger" effect="dark">页 {{ err.page_no ?? '未知' }}</el-tag>
+                  <span class="text-sm font-semibold text-red-800">{{ err.error_type || 'Error' }}</span>
+                </div>
+                <div class="text-xs text-red-600 font-mono pl-1">{{ err.error_message || JSON.stringify(err) }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -229,6 +246,7 @@ let pollingInterval: number | null = null
 const statusCount = computed(() => ({
   PENDING: rows.value.filter((item) => item.status === 'PENDING').length,
   RUNNING: rows.value.filter((item) => item.status === 'RUNNING').length,
+  PARTIAL_SUCCESS: rows.value.filter((item) => item.status === 'PARTIAL_SUCCESS').length,
   COMPLETED: rows.value.filter((item) => item.status === 'COMPLETED').length,
   FAILED: rows.value.filter((item) => item.status === 'FAILED').length,
 }))
@@ -316,6 +334,7 @@ function progress(row: TaskCenterItem): number {
 
 function statusTagType(value: string) {
   if (value === 'COMPLETED') return 'success'
+  if (value === 'PARTIAL_SUCCESS') return 'warning'
   if (value === 'FAILED') return 'danger'
   if (value === 'RUNNING') return 'primary'
   if (value === 'PENDING') return 'warning'
@@ -324,6 +343,7 @@ function statusTagType(value: string) {
 
 function progressStatus(value: string) {
   if (value === 'COMPLETED') return 'success'
+  if (value === 'PARTIAL_SUCCESS') return 'warning'
   if (value === 'FAILED') return 'exception'
   return undefined
 }
@@ -342,6 +362,7 @@ function statusLabel(value: string) {
   const labels: Record<string, string> = {
     PENDING: '待处理',
     RUNNING: '运行中',
+    PARTIAL_SUCCESS: '部分成功',
     COMPLETED: '已完成',
     FAILED: '失败',
   }
@@ -350,6 +371,9 @@ function statusLabel(value: string) {
 
 function modelLabel(row: TaskCenterItem) {
   if (row.task_category === 'PARSE_CHUNK') {
+    if (row.metadata?.parser) {
+      return `解析引擎: ${row.metadata.parser}`
+    }
     return row.worker_id ? `Worker: ${row.worker_id}` : '解析与切片流水线'
   }
   const model = [row.model_provider, row.model_name].filter(Boolean).join(' / ')
@@ -358,6 +382,13 @@ function modelLabel(row: TaskCenterItem) {
 
 function indexLabel(row: TaskCenterItem) {
   if (row.task_category === 'PARSE_CHUNK') {
+    if (row.metadata) {
+      const parts = []
+      if (row.metadata.page_count != null) parts.push(`共 ${row.metadata.page_count} 页`)
+      if (row.metadata.block_count != null) parts.push(`生成 ${row.metadata.block_count} 个Block`)
+      if (row.metadata.error_count != null && row.metadata.error_count > 0) parts.push(`${row.metadata.error_count}页失败`)
+      return parts.join(' | ') || (row.finished_at ? `完成于 ${formatTime(row.finished_at)}` : '-')
+    }
     return row.finished_at ? `完成于 ${formatTime(row.finished_at)}` : '生成 chunk 后创建索引任务'
   }
   const parts = []

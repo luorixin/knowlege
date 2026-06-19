@@ -1,12 +1,14 @@
+import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { http, unwrapResponse } from './http'
 import type { AgentChatPayload, AgentChatResult, EntityId, AgentSessionDto, AgentMessageDto } from './types'
 
 export async function chatWithAgent(payload: AgentChatPayload): Promise<AgentChatResult> {
-  return unwrapResponse(await http.post('/api/agent/chat', payload))
+  return unwrapResponse(await http.post('/api/v1/agent/chat', payload))
 }
 
 export async function chatWithAgentStream(
   payload: AgentChatPayload,
+  controller: AbortController,
   onMessage: (chunk: string) => void,
   onDone: (result: AgentChatResult) => void,
   onError: (error: Error) => void
@@ -14,6 +16,7 @@ export async function chatWithAgentStream(
   try {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
     }
     
     const rawUser = window.localStorage.getItem('knowledge-user')
@@ -27,57 +30,49 @@ export async function chatWithAgentStream(
       }
     }
 
-    const response = await fetch('/api/agent/chat/stream', {
+    await fetchEventSource('/api/v1/agent/chat/stream', {
       method: 'POST',
       headers,
-      body: JSON.stringify(payload)
-    })
-    
-    if (!response.ok) {
-      throw new Error(`请求失败: ${response.status}`)
-    }
-    
-    const reader = response.body?.getReader()
-    if (!reader) throw new Error('无法读取响应流')
-    
-    const decoder = new TextDecoder('utf-8')
-    let buffer = ''
-    let currentEvent = 'message'
-    
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      
-      buffer += decoder.decode(value, { stream: true })
-      
-      let eolIndex
-      while ((eolIndex = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, eolIndex).trim()
-        buffer = buffer.slice(eolIndex + 1)
-        
-        if (line.startsWith('event:')) {
-          currentEvent = line.substring(6).trim()
-        } else if (line.startsWith('data:')) {
-          const dataStr = line.substring(5)
-          if (currentEvent === 'message') {
-            onMessage(dataStr)
-          } else if (currentEvent === 'done') {
-            onDone(JSON.parse(dataStr))
-          }
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+      async onopen(response) {
+        if (!response.ok) {
+          throw new Error(`请求失败: ${response.status} ${response.statusText}`)
         }
+      },
+      onmessage(msg) {
+        if (msg.event === 'message') {
+          onMessage(msg.data)
+        } else if (msg.event === 'done') {
+          onDone(JSON.parse(msg.data))
+        }
+      },
+      onerror(err) {
+        onError(err instanceof Error ? err : new Error(String(err)))
+        throw err // Throw to stop reconnect loop
       }
-    }
+    })
   } catch (error) {
-    onError(error instanceof Error ? error : new Error(String(error)))
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.log('Stream aborted by user')
+    } else {
+      onError(error instanceof Error ? error : new Error(String(error)))
+    }
   }
 }
 
-export async function listSessions(spaceId: EntityId): Promise<AgentSessionDto[]> {
-  const response = await http.get(`/api/agent/kb-spaces/${spaceId}/sessions`)
-  return unwrapResponse<AgentSessionDto[]>(response)
+export async function listSessions(spaceId: EntityId, page = 0, size = 20): Promise<AgentSessionDto[]> {
+  const response = await http.get(`/api/v1/agent/kb-spaces/${spaceId}/sessions`, {
+    params: { page, size },
+  })
+  const data = unwrapResponse<any>(response)
+  return data.content || []
 }
 
-export async function getSessionMessages(spaceId: EntityId, sessionId: EntityId): Promise<AgentMessageDto[]> {
-  const response = await http.get(`/api/agent/kb-spaces/${spaceId}/sessions/${sessionId}/messages`)
-  return unwrapResponse<AgentMessageDto[]>(response)
+export async function getSessionMessages(spaceId: EntityId, sessionId: EntityId, page = 0, size = 50): Promise<AgentMessageDto[]> {
+  const response = await http.get(`/api/v1/agent/kb-spaces/${spaceId}/sessions/${sessionId}/messages`, {
+    params: { page, size },
+  })
+  const data = unwrapResponse<any>(response)
+  return data.content || []
 }

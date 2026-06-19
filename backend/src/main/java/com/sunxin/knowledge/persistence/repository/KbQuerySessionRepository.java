@@ -2,6 +2,8 @@ package com.sunxin.knowledge.persistence.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.sunxin.knowledge.persistence.entity.KbQuerySession;
@@ -15,10 +17,11 @@ public interface KbQuerySessionRepository extends JpaRepository<KbQuerySession, 
             String status
     );
 
-    java.util.List<KbQuerySession> findByTenantIdAndSpaceIdAndUserIdAndStatusOrderByCreatedAtDesc(
+    Page<KbQuerySession> findByTenantIdAndSpaceIdAndUserIdAndStatusOrderByCreatedAtDesc(
             Long tenantId,
             Long spaceId,
             Long userId,
-            String status
+            String status,
+            Pageable pageable
     );
 }

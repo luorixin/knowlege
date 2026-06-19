@@ -6,6 +6,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +45,7 @@ public class RetrievalSearchService {
     private final KeywordChunkSearchClient keywordSearchClient;
     private final VectorChunkSearchClient vectorSearchClient;
     private final AuditLogRecorder auditLogRecorder;
+    private final TaskExecutor taskExecutor;
 
     public RetrievalSearchService(
             KbSpaceRepository spaceRepository,
@@ -48,7 +53,9 @@ public class RetrievalSearchService {
             DocumentAccessFilter documentAccessFilter,
             KeywordChunkSearchClient keywordSearchClient,
             VectorChunkSearchClient vectorSearchClient,
-            AuditLogRecorder auditLogRecorder
+            AuditLogRecorder auditLogRecorder,
+            @Qualifier("applicationTaskExecutor")
+            TaskExecutor taskExecutor
     ) {
         this.spaceRepository = spaceRepository;
         this.documentRepository = documentRepository;
@@ -56,6 +63,7 @@ public class RetrievalSearchService {
         this.keywordSearchClient = keywordSearchClient;
         this.vectorSearchClient = vectorSearchClient;
         this.auditLogRecorder = auditLogRecorder;
+        this.taskExecutor = taskExecutor;
     }
 
     @Transactional(readOnly = true)
@@ -83,12 +91,20 @@ public class RetrievalSearchService {
             allQueries.addAll(request.expandedQueries());
         }
 
-        List<ScoredChunk> keywordResults = new java.util.ArrayList<>();
-        List<ScoredChunk> vectorResults = new java.util.ArrayList<>();
+        List<CompletableFuture<List<ScoredChunk>>> keywordFutures = new ArrayList<>();
+        List<CompletableFuture<List<ScoredChunk>>> vectorFutures = new ArrayList<>();
 
         for (String q : allQueries) {
-            keywordResults.addAll(keywordSearchClient.search(q, searchScope, candidateLimit));
-            vectorResults.addAll(vectorSearchClient.search(q, searchScope, candidateLimit));
+            keywordFutures.add(CompletableFuture.supplyAsync(() -> keywordSearchClient.search(q, searchScope, candidateLimit), taskExecutor));
+            vectorFutures.add(CompletableFuture.supplyAsync(() -> vectorSearchClient.search(q, searchScope, candidateLimit), taskExecutor));
+        }
+
+        List<ScoredChunk> keywordResults = new ArrayList<>();
+        List<ScoredChunk> vectorResults = new ArrayList<>();
+
+        for (int i = 0; i < allQueries.size(); i++) {
+            keywordResults.addAll(keywordFutures.get(i).join());
+            vectorResults.addAll(vectorFutures.get(i).join());
         }
 
         List<RetrievalCandidate> candidates = merge(keywordResults, vectorResults);
@@ -140,28 +156,49 @@ public class RetrievalSearchService {
             List<ScoredChunk> keywordResults,
             List<ScoredChunk> vectorResults
     ) {
-        Map<Long, RetrievalCandidate> merged = new LinkedHashMap<>();
+        Map<Long, Double> rrfScores = new LinkedHashMap<>();
+
+        // RRF constant k
+        int k = 60;
+
+        // Add RRF score for keyword results
+        for (int i = 0; i < keywordResults.size(); i++) {
+            ScoredChunk result = keywordResults.get(i);
+            double rrfScore = 1.0 / (k + i + 1);
+            rrfScores.merge(result.chunk().getId(), rrfScore, Double::sum);
+        }
+
+        // Add RRF score for vector results
+        for (int i = 0; i < vectorResults.size(); i++) {
+            ScoredChunk result = vectorResults.get(i);
+            double rrfScore = 1.0 / (k + i + 1);
+            rrfScores.merge(result.chunk().getId(), rrfScore, Double::sum);
+        }
+
+        Map<Long, KbDocumentChunk> chunkMap = new LinkedHashMap<>();
+        Map<Long, Boolean> keywordHits = new LinkedHashMap<>();
+        Map<Long, Boolean> vectorHits = new LinkedHashMap<>();
+
         for (ScoredChunk result : keywordResults) {
-            merged.put(result.chunk().getId(), new RetrievalCandidate(result.chunk(), result.score(), true, false));
+            chunkMap.putIfAbsent(result.chunk().getId(), result.chunk());
+            keywordHits.put(result.chunk().getId(), true);
         }
         for (ScoredChunk result : vectorResults) {
-            merged.merge(
-                    result.chunk().getId(),
-                    new RetrievalCandidate(result.chunk(), result.score(), false, true),
-                    RetrievalSearchService::mergeCandidate
-            );
+            chunkMap.putIfAbsent(result.chunk().getId(), result.chunk());
+            vectorHits.put(result.chunk().getId(), true);
         }
-        return new ArrayList<>(merged.values());
-    }
 
-    private static RetrievalCandidate mergeCandidate(RetrievalCandidate left, RetrievalCandidate right) {
-        double score = Math.max(left.score(), right.score());
-        boolean keywordHit = left.keywordHit() || right.keywordHit();
-        boolean vectorHit = left.vectorHit() || right.vectorHit();
-        if (keywordHit && vectorHit) {
-            score = Math.min(0.99, score + 0.08);
+        List<RetrievalCandidate> candidates = new ArrayList<>();
+        for (Map.Entry<Long, Double> entry : rrfScores.entrySet()) {
+            Long chunkId = entry.getKey();
+            candidates.add(new RetrievalCandidate(
+                    chunkMap.get(chunkId),
+                    entry.getValue(),
+                    keywordHits.getOrDefault(chunkId, false),
+                    vectorHits.getOrDefault(chunkId, false)
+            ));
         }
-        return new RetrievalCandidate(left.chunk(), score, keywordHit, vectorHit);
+        return candidates;
     }
 
     private static RetrievalSearchResult toResult(

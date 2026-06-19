@@ -68,9 +68,6 @@ public class MilvusVectorChunkSearchClient implements VectorChunkSearchClient {
         if (scope == null || limit <= 0) {
             return List.of();
         }
-        if (!scope.spaceOwner()) {
-            return fallbackClient.search(query, scope, limit);
-        }
         try {
             EmbeddingResult embedding = embeddingProvider.embed(query);
             return searchMilvus(embedding.vector(), scope, limit);
@@ -131,6 +128,13 @@ public class MilvusVectorChunkSearchClient implements VectorChunkSearchClient {
         addStringFilter(filters, "doc_type", scope.docType());
         addStringFilter(filters, "industry", scope.industry());
         addStringFilter(filters, "service_line", scope.serviceLine());
+        addStringFilter(filters, "block_type", scope.blockType());
+        addStringFilter(filters, "content_type", scope.contentType());
+        addStringFilter(filters, "parser", scope.parser());
+        addStringFilter(filters, "page_parse_mode", scope.pageParseMode());
+        if (scope.minConfidence() != null) {
+            filters.add("confidence >= " + scope.minConfidence());
+        }
         return String.join(" && ", filters);
     }
 

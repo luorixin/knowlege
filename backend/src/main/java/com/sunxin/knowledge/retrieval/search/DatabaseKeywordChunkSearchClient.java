@@ -8,6 +8,7 @@ import java.util.Map;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import com.sunxin.knowledge.document.domain.DocumentStatus;
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
 import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 
@@ -15,7 +16,6 @@ import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 public class DatabaseKeywordChunkSearchClient implements KeywordChunkSearchClient {
 
     private static final String ACTIVE = "ACTIVE";
-    private static final String DELETED = "DELETED";
     private static final int MAX_DATABASE_TERMS = 3;
 
     private final KbDocumentChunkRepository chunkRepository;
@@ -56,7 +56,7 @@ public class DatabaseKeywordChunkSearchClient implements KeywordChunkSearchClien
                 scope.serviceLine(),
                 scope.createdFrom(),
                 ACTIVE,
-                DELETED,
+                DocumentStatus.DELETED,
                 ACTIVE,
                 term(databaseTerms, 0),
                 term(databaseTerms, 1),

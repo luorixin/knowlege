@@ -12,6 +12,20 @@ public record SearchFilters(
         String serviceLine,
 
         @JsonProperty("year_from")
-        Integer yearFrom
+        Integer yearFrom,
+
+        @JsonProperty("block_type")
+        String blockType,
+
+        @JsonProperty("content_type")
+        String contentType,
+
+        @JsonProperty("min_confidence")
+        Double minConfidence,
+
+        String parser,
+
+        @JsonProperty("page_parse_mode")
+        String pageParseMode
 ) {
 }

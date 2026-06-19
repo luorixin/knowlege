@@ -4,12 +4,21 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import com.sunxin.knowledge.retrieval.rerank.ContextCitation;
 
 @Service
+@ConditionalOnProperty(prefix = "knowledge.llm", name = "provider", havingValue = "mock", matchIfMissing = true)
 public class MockLlmProvider implements LlmProvider {
+
+    private final org.springframework.core.task.TaskExecutor taskExecutor;
+
+    public MockLlmProvider(@Qualifier("applicationTaskExecutor") org.springframework.core.task.TaskExecutor taskExecutor) {
+        this.taskExecutor = taskExecutor;
+    }
 
     private static final String NO_EVIDENCE = "未在当前知识库中找到可靠依据，无法基于现有资料回答该问题。";
     private static final Pattern CITATION_BLOCK = Pattern.compile(
@@ -47,7 +56,7 @@ public class MockLlmProvider implements LlmProvider {
 
     @Override
     public void stream(LlmRequest request, java.util.function.Consumer<String> onNext, java.util.function.Consumer<LlmResponse> onComplete, java.util.function.Consumer<Throwable> onError) {
-        new Thread(() -> {
+        taskExecutor.execute(() -> {
             try {
                 LlmResponse response = generate(request);
                 String answer = response.answer();
@@ -61,7 +70,7 @@ public class MockLlmProvider implements LlmProvider {
             } catch (Exception e) {
                 onError.accept(e);
             }
-        }).start();
+        });
     }
 
     @Override

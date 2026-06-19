@@ -2,6 +2,8 @@ package com.sunxin.knowledge.knowledgebase.application;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +15,7 @@ import com.sunxin.knowledge.common.error.NotFoundException;
 import com.sunxin.knowledge.common.id.IdGenerator;
 import com.sunxin.knowledge.knowledgebase.dto.CreateKnowledgeSpaceRequest;
 import com.sunxin.knowledge.knowledgebase.dto.KnowledgeSpaceResponse;
+import com.sunxin.knowledge.common.dto.PageResponse;
 import com.sunxin.knowledge.persistence.entity.KbSpace;
 import com.sunxin.knowledge.persistence.repository.KbSpaceRepository;
 
@@ -63,12 +66,20 @@ public class KnowledgeSpaceApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<KnowledgeSpaceResponse> list(Long tenantId, CurrentUser currentUser) {
-        return spaceRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(tenantId, ACTIVE)
-                .stream()
+    public PageResponse<KnowledgeSpaceResponse> list(Long tenantId, CurrentUser currentUser, int page, int size) {
+        Page<KbSpace> spacePage = spaceRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(tenantId, ACTIVE, PageRequest.of(page, size));
+        List<KnowledgeSpaceResponse> filteredContent = spacePage.getContent().stream()
                 .filter(space -> accessControlService.canAccessSpace(space, currentUser, PermissionAction.SPACE_READ))
                 .map(KnowledgeSpaceResponse::fromEntity)
                 .toList();
+                
+        return new PageResponse<>(
+                filteredContent,
+                spacePage.getNumber(),
+                spacePage.getSize(),
+                spacePage.getTotalElements(),
+                spacePage.getTotalPages()
+        );
     }
 
     @Transactional(readOnly = true)

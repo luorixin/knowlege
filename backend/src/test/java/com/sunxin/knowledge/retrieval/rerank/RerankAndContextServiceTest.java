@@ -36,7 +36,7 @@ class RerankAndContextServiceTest {
 
         List<RerankedChunk> reranked = rerankService.rerank(new RerankRequest(
                 "金融行业数据治理 proposal 有哪些类似案例？",
-                new SearchFilters("proposal", "金融", "数据治理", 2022),
+                new SearchFilters("proposal", "金融", "数据治理", 2022, null, null, null, null, null),
                 candidates,
                 10,
                 2

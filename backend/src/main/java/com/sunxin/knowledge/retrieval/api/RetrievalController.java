@@ -15,8 +15,11 @@ import com.sunxin.knowledge.retrieval.dto.RetrievalSearchResponse;
 
 import jakarta.validation.Valid;
 
+import org.springframework.web.bind.annotation.RequestMapping;
+
 @Validated
 @RestController
+@RequestMapping({"/api/v1/retrieval", "/api/retrieval"})
 public class RetrievalController {
 
     private final RetrievalSearchService retrievalSearchService;
@@ -30,7 +33,7 @@ public class RetrievalController {
         this.currentUserResolver = currentUserResolver;
     }
 
-    @PostMapping("/api/retrieval/search")
+    @PostMapping("/search")
     public ApiResponse<RetrievalSearchResponse> search(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,

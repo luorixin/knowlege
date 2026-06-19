@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -25,15 +26,13 @@ import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbEmbeddingIndexTaskRepository;
 import com.sunxin.knowledge.task.dto.EmbeddingIndexTaskResponse;
+import com.sunxin.knowledge.common.dto.PageResponse;
+import com.sunxin.knowledge.task.domain.TaskStatus;
 
 @Service
 @EnableConfigurationProperties(EmbeddingTaskExecutionProperties.class)
 public class EmbeddingIndexTaskExecutionService {
 
-    private static final String PENDING = "PENDING";
-    private static final String RUNNING = "RUNNING";
-    private static final String COMPLETED = "COMPLETED";
-    private static final String FAILED = "FAILED";
     private static final int RUNNING_PROGRESS = 40;
 
     private final KbEmbeddingIndexTaskRepository taskRepository;
@@ -63,7 +62,7 @@ public class EmbeddingIndexTaskExecutionService {
     }
 
     public Optional<EmbeddingIndexTaskResponse> processNextPending() {
-        return taskRepository.findFirstByStatusOrderByPriorityDescCreatedAtAsc(PENDING)
+        return taskRepository.findFirstByStatusOrderByPriorityDescCreatedAtAsc(TaskStatus.PENDING)
                 .map(task -> process(task.getId()));
     }
 
@@ -87,10 +86,10 @@ public class EmbeddingIndexTaskExecutionService {
     public EmbeddingIndexTaskResponse retry(Long taskId) {
         KbEmbeddingIndexTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Embedding index task not found"));
-        if (!FAILED.equals(task.getStatus())) {
+        if (task.getStatus() != TaskStatus.FAILED) {
             throw new BadRequestException("Only FAILED embedding index tasks can be retried");
         }
-        task.setStatus(PENDING);
+        task.setStatus(TaskStatus.PENDING);
         task.setProgressPercent(0);
         task.setRetryCount(task.getRetryCount() == null ? 1 : task.getRetryCount() + 1);
         task.setStartedAt(null);
@@ -101,15 +100,19 @@ public class EmbeddingIndexTaskExecutionService {
     }
 
     @Transactional(readOnly = true)
-    public List<EmbeddingIndexTaskResponse> list(Long spaceId, String status, int limit) {
-        return taskRepository.findBySpaceIdAndOptionalStatus(
-                        spaceId,
-                        blankToNull(status),
-                        PageRequest.of(0, Math.min(Math.max(limit, 1), 200))
-                )
-                .stream()
-                .map(EmbeddingIndexTaskResponse::fromEntity)
-                .toList();
+    public PageResponse<EmbeddingIndexTaskResponse> list(Long spaceId, String status, int page, int size) {
+        Page<KbEmbeddingIndexTask> taskPage = taskRepository.findBySpaceIdAndOptionalStatus(
+                spaceId,
+                status != null && !status.isBlank() ? TaskStatus.valueOf(status.trim()) : null,
+                PageRequest.of(page, Math.min(Math.max(size, 1), 200))
+        );
+        return new PageResponse<>(
+                taskPage.getContent().stream().map(EmbeddingIndexTaskResponse::fromEntity).toList(),
+                taskPage.getNumber(),
+                taskPage.getSize(),
+                taskPage.getTotalElements(),
+                taskPage.getTotalPages()
+        );
     }
 
     @org.springframework.kafka.annotation.KafkaListener(topics = KafkaConfig.TOPIC_EMBEDDING_TASKS)
@@ -129,11 +132,11 @@ public class EmbeddingIndexTaskExecutionService {
     protected KbEmbeddingIndexTask markRunning(Long taskId) {
         KbEmbeddingIndexTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Embedding index task not found"));
-        if (!PENDING.equals(task.getStatus()) && !RUNNING.equals(task.getStatus())) {
+        if (task.getStatus() != TaskStatus.PENDING && task.getStatus() != TaskStatus.RUNNING) {
             throw new BadRequestException("Only PENDING embedding index tasks can be processed");
         }
         LocalDateTime now = LocalDateTime.now();
-        task.setStatus(RUNNING);
+        task.setStatus(TaskStatus.RUNNING);
         task.setProgressPercent(RUNNING_PROGRESS);
         task.setStartedAt(now);
         task.setFinishedAt(null);
@@ -146,7 +149,7 @@ public class EmbeddingIndexTaskExecutionService {
     protected EmbeddingIndexTaskResponse markCompleted(Long taskId, EmbeddingResult embedding) {
         KbEmbeddingIndexTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Embedding index task not found"));
-        task.setStatus(COMPLETED);
+        task.setStatus(TaskStatus.COMPLETED);
         task.setProgressPercent(100);
         task.setFinishedAt(LocalDateTime.now());
         task.setModelProvider(embedding.modelProvider());
@@ -169,7 +172,7 @@ public class EmbeddingIndexTaskExecutionService {
     protected EmbeddingIndexTaskResponse markFailed(Long taskId, RuntimeException ex) {
         KbEmbeddingIndexTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("Embedding index task not found"));
-        task.setStatus(FAILED);
+        task.setStatus(TaskStatus.FAILED);
         task.setProgressPercent(100);
         task.setFinishedAt(LocalDateTime.now());
         task.setErrorCode(ex.getClass().getSimpleName());

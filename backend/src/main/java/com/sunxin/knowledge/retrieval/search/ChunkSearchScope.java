@@ -13,6 +13,11 @@ public record ChunkSearchScope(
         String docType,
         String industry,
         String serviceLine,
-        LocalDateTime createdFrom
+        LocalDateTime createdFrom,
+        String blockType,
+        String contentType,
+        Double minConfidence,
+        String parser,
+        String pageParseMode
 ) {
 }

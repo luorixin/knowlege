@@ -20,6 +20,14 @@ class OpenAIVLMCaptionProvider(VLMCaptionProvider):
         self.endpoint = (settings.ai_vlm_endpoint or settings.ai_llm_endpoint).rstrip("/")
         self.model_name = settings.vlm_model_name
         self.temperature = settings.vlm_temperature
+        self.timeout = settings.ai_request_timeout
+
+        if not self.endpoint:
+            logger.error("OpenAI VLM provider initialized but endpoint is missing (ai_vlm_endpoint or ai_llm_endpoint). VLM requests will likely fail.")
+        if not self.api_key:
+            logger.error("OpenAI VLM provider initialized but API key is missing. VLM requests will likely fail.")
+        if not self.model_name:
+            logger.error("OpenAI VLM provider initialized but model_name is missing. VLM requests will likely fail.")
 
     def caption(self, image_uri: str, metadata: dict[str, Any] | None = None) -> VLMCaptionResult:
         """
@@ -89,7 +97,7 @@ class OpenAIVLMCaptionProvider(VLMCaptionProvider):
 
         # 5. Call API
         try:
-            with httpx.Client(timeout=60.0, trust_env=False) as client:
+            with httpx.Client(timeout=float(self.timeout), trust_env=False) as client:
                 response = client.post(url, headers=headers, json=payload)
                 response.raise_for_status()
                 data = response.json()

@@ -26,6 +26,9 @@ public class KbEvalCase extends AuditableEntity {
     @Column(name = "tags", length = 512)
     private String tags;
 
+    @Column(name = "case_type", nullable = false, length = 32)
+    private String caseType = "QA_RAG";
+
     @Column(name = "status", nullable = false, length = 32)
     private String status = "ACTIVE";
 
@@ -78,6 +81,14 @@ public class KbEvalCase extends AuditableEntity {
 
     public void setTags(String tags) {
         this.tags = tags;
+    }
+
+    public String getCaseType() {
+        return caseType;
+    }
+
+    public void setCaseType(String caseType) {
+        this.caseType = caseType;
     }
 
     public String getStatus() {

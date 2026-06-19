@@ -9,7 +9,8 @@ export interface ListTaskCenterParams {
 }
 
 export async function listTaskCenter(params: ListTaskCenterParams): Promise<TaskCenterItem[]> {
-  return unwrapResponse(await http.get('/api/v1/tasks/center', { params }))
+  const data = unwrapResponse(await http.get('/api/v1/tasks/center', { params })) as any
+  return data.content || []
 }
 
 export async function runTask(taskKey: string): Promise<TaskCenterItem> {

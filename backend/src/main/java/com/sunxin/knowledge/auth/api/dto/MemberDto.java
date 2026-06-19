@@ -6,4 +6,4 @@ public record MemberDto(
     String displayName,
     String role,
     String status
-) {}
+) implements java.io.Serializable {}

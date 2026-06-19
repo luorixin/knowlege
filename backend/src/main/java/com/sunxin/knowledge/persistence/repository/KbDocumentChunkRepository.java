@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.sunxin.knowledge.document.domain.DocumentStatus;
 import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
 
 public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk, Long> {
@@ -131,7 +132,7 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
             @Param("serviceLine") String serviceLine,
             @Param("createdFrom") LocalDateTime createdFrom,
             @Param("chunkStatus") String chunkStatus,
-            @Param("deletedDocumentStatus") String deletedDocumentStatus,
+            @Param("deletedDocumentStatus") DocumentStatus deletedDocumentStatus,
             @Param("policyStatus") String policyStatus,
             @Param("term1") String term1,
             @Param("term2") String term2,
@@ -244,7 +245,7 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
             @Param("serviceLine") String serviceLine,
             @Param("createdFrom") LocalDateTime createdFrom,
             @Param("chunkStatus") String chunkStatus,
-            @Param("deletedDocumentStatus") String deletedDocumentStatus,
+            @Param("deletedDocumentStatus") DocumentStatus deletedDocumentStatus,
             @Param("policyStatus") String policyStatus,
             Pageable pageable
     );

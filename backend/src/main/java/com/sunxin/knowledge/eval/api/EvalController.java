@@ -21,8 +21,11 @@ import com.sunxin.knowledge.eval.dto.EvalRunResponse;
 
 import jakarta.validation.Valid;
 
+import org.springframework.web.bind.annotation.RequestMapping;
+
 @Validated
 @RestController
+@RequestMapping({"/api/v1/eval", "/api/eval"})
 public class EvalController {
 
     private final EvalService evalService;
@@ -33,7 +36,7 @@ public class EvalController {
         this.currentUserResolver = currentUserResolver;
     }
 
-    @PostMapping("/api/eval/dataset")
+    @PostMapping("/dataset")
     public ApiResponse<EvalDatasetResponse> createDataset(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -43,7 +46,7 @@ public class EvalController {
         return ApiResponse.ok(evalService.createDataset(request, currentUser));
     }
 
-    @GetMapping("/api/eval/dataset")
+    @GetMapping("/dataset")
     public ApiResponse<java.util.List<EvalDatasetResponse>> listDatasets(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId
@@ -52,7 +55,7 @@ public class EvalController {
         return ApiResponse.ok(evalService.listDatasets(currentUser));
     }
 
-    @GetMapping("/api/eval/dataset/{datasetId}/cases")
+    @GetMapping("/dataset/{datasetId}/cases")
     public ApiResponse<java.util.List<EvalCaseResponse>> listCases(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -62,7 +65,7 @@ public class EvalController {
         return ApiResponse.ok(evalService.listCases(datasetId, currentUser));
     }
 
-    @PostMapping("/api/eval/case")
+    @PostMapping("/case")
     public ApiResponse<EvalCaseResponse> createCase(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -72,7 +75,7 @@ public class EvalController {
         return ApiResponse.ok(evalService.createCase(request, currentUser));
     }
 
-    @PostMapping("/api/eval/run")
+    @PostMapping("/run")
     public ApiResponse<EvalRunResponse> run(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -82,7 +85,7 @@ public class EvalController {
         return ApiResponse.ok(evalService.run(request, currentUser));
     }
 
-    @GetMapping("/api/eval/result/{runId}")
+    @GetMapping("/result/{runId}")
     public ApiResponse<EvalRunResponse> result(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,

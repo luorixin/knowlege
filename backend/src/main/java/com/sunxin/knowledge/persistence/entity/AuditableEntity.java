@@ -13,7 +13,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Transient;
 
 @MappedSuperclass
-public abstract class AuditableEntity implements Persistable<Long> {
+public abstract class AuditableEntity implements Persistable<Long>, java.io.Serializable {
 
     @Id
     @Column(name = "id", nullable = false)

@@ -98,19 +98,23 @@
           <el-descriptions-item label="源文件">{{ detail.sourceUri || '-' }}</el-descriptions-item>
           <el-descriptions-item label="Hash">{{ detail.fileHash || '-' }}</el-descriptions-item>
           <el-descriptions-item label="解析状态">
-            <el-tag :type="detail.currentVersion?.parseStatus === 'FAILED' ? 'danger' : 'info'">
+            <el-tag :type="detail.currentVersion?.parseStatus === 'FAILED' ? 'danger' : (detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS' ? 'warning' : 'info')">
               {{ detail.currentVersion?.parseStatus || '-' }}
             </el-tag>
             <el-button 
-              v-if="detail.currentVersion?.parseStatus === 'FAILED'" 
+              v-if="detail.currentVersion?.parseStatus === 'FAILED' || detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS'" 
               link type="primary" 
               class="ml-2"
               @click="retryParse(detail.id)">
               重试解析
             </el-button>
           </el-descriptions-item>
-          <el-descriptions-item label="解析失败原因" v-if="detail.currentVersion?.parseStatus === 'FAILED'">
-            <span class="text-danger">{{ parseStatus?.errorMessage || '未知错误' }}</span>
+          <el-descriptions-item label="解析失败原因" v-if="detail.currentVersion?.parseStatus === 'FAILED' || detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS'">
+            <span class="text-danger" v-if="parseStatus?.errorMessage">{{ parseStatus.errorMessage }}</span>
+            <span v-else-if="parseStatus?.metadata?.errors?.length" class="text-danger">
+              部分页面解析失败 ({{ parseStatus.metadata.error_count || parseStatus.metadata.errors.length }} 页)
+            </span>
+            <span v-else class="text-slate-400">未知原因</span>
           </el-descriptions-item>
           <el-descriptions-item label="脱敏状态">
             {{ detail.currentVersion?.desensitizeStatus || '-' }}
@@ -142,13 +146,35 @@
       <el-descriptions v-else-if="parseStatus" :column="1" border>
         <el-descriptions-item label="任务 ID">{{ parseStatus.parseTaskId || '-' }}</el-descriptions-item>
         <el-descriptions-item label="阶段">{{ parseStatus.taskType || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="任务状态">{{ parseStatus.status || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="解析状态">{{ parseStatus.parseStatus || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="任务状态">
+          <el-tag :type="parseStatus.status === 'FAILED' ? 'danger' : (parseStatus.status === 'PARTIAL_SUCCESS' ? 'warning' : 'info')" size="small">
+            {{ parseStatus.status || '-' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="解析状态">
+          <el-tag :type="parseStatus.parseStatus === 'FAILED' ? 'danger' : (parseStatus.parseStatus === 'PARTIAL_SUCCESS' ? 'warning' : 'info')" size="small">
+            {{ parseStatus.parseStatus || '-' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="解析详情" v-if="parseStatus.metadata">
+          <div class="text-sm">
+            <div v-if="parseStatus.metadata.parser"><strong>引擎:</strong> {{ parseStatus.metadata.parser }}</div>
+            <div v-if="parseStatus.metadata.page_count != null"><strong>页数:</strong> {{ parseStatus.metadata.page_count }}</div>
+            <div v-if="parseStatus.metadata.block_count != null"><strong>Block:</strong> {{ parseStatus.metadata.block_count }}</div>
+            <div v-if="parseStatus.metadata.error_count != null && parseStatus.metadata.error_count > 0" class="text-orange-500"><strong>失败页数:</strong> {{ parseStatus.metadata.error_count }}</div>
+          </div>
+        </el-descriptions-item>
         <el-descriptions-item label="进度">
-          <el-progress :percentage="parseStatus.progressPercent || 0" />
+          <el-progress :percentage="parseStatus.progressPercent || 0" :status="parseStatus.status === 'FAILED' ? 'exception' : (parseStatus.status === 'PARTIAL_SUCCESS' ? 'warning' : '')" />
         </el-descriptions-item>
         <el-descriptions-item label="错误">
-          {{ parseStatus.errorMessage || '-' }}
+          <div v-if="parseStatus.errorMessage" class="text-red-500 mb-2">{{ parseStatus.errorMessage }}</div>
+          <div v-if="parseStatus.metadata?.errors?.length" class="bg-red-50 p-2 rounded text-xs text-red-600 max-h-40 overflow-auto">
+            <div v-for="(err, idx) in parseStatus.metadata.errors" :key="idx" class="mb-1 border-b border-red-100 last:border-0 pb-1">
+              <strong>页 {{ err.page_no || '?' }}</strong>: {{ err.error_message || err.error_type || 'Error' }}
+            </div>
+          </div>
+          <span v-if="!parseStatus.errorMessage && (!parseStatus.metadata?.errors || parseStatus.metadata.errors.length === 0)">-</span>
         </el-descriptions-item>
       </el-descriptions>
       <el-empty v-else description="暂无状态" />
@@ -159,7 +185,7 @@
 <script setup lang="ts">
 import { Refresh, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
@@ -195,6 +221,7 @@ const statusVisible = ref(false)
 const statusLoading = ref(false)
 const parseStatus = ref<DocumentParseStatus | null>(null)
 const chunks = ref<any[]>([])
+let pollingInterval: number | null = null
 
 const selectedSpace = computed(() => knowledgeStore.spaces.find((item) => item.id === currentSpaceId.value) || null)
 
@@ -210,22 +237,35 @@ onMounted(async () => {
   if (docId) {
     await openDetail(docId)
   }
+  
+  pollingInterval = window.setInterval(async () => {
+    const hasProcessing = documents.value.some(d => d.status === 'PROCESSING' || d.status === 'PENDING')
+    if (hasProcessing) {
+      await loadDocuments(true)
+    }
+  }, 3000)
+})
+
+onUnmounted(() => {
+  if (pollingInterval) {
+    window.clearInterval(pollingInterval)
+  }
 })
 
 watch(currentSpaceId, (spaceId) => {
   knowledgeStore.selectSpace(spaceId)
 })
 
-async function loadDocuments() {
+async function loadDocuments(silent = false) {
   if (!currentSpaceId.value) return
-  loading.value = true
+  if (!silent) loading.value = true
   error.value = ''
   try {
     documents.value = await listDocuments(currentSpaceId.value)
   } catch (err) {
-    error.value = apiErrorMessage(err)
+    if (!silent) error.value = apiErrorMessage(err)
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 

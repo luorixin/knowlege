@@ -1,5 +1,8 @@
 package com.sunxin.knowledge.integration.milvus;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,6 +27,7 @@ public class MilvusVectorStoreClient implements VectorStoreClient {
 
     private final RestClient restClient;
     private final MilvusProperties properties;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     public MilvusVectorStoreClient(MilvusProperties properties) {
         this.properties = properties;
@@ -125,6 +129,24 @@ public class MilvusVectorStoreClient implements VectorStoreClient {
         row.put("industry", normalize(record.industry()));
         row.put("service_line", normalize(record.serviceLine()));
         row.put("metadata_json", record.metadataJson());
+        
+        if (record.metadataJson() != null && !record.metadataJson().isBlank()) {
+            try {
+                JsonNode node = OBJECT_MAPPER.readTree(record.metadataJson());
+                if (node.hasNonNull("block_type")) row.put("block_type", normalize(node.get("block_type").asText(null)));
+                if (node.hasNonNull("source_uri")) row.put("source_uri", normalize(node.get("source_uri").asText(null)));
+                if (node.hasNonNull("image_uri")) row.put("image_uri", normalize(node.get("image_uri").asText(null)));
+                if (node.hasNonNull("confidence")) row.put("confidence", node.get("confidence").asDouble());
+                if (node.hasNonNull("page_parse_mode")) row.put("page_parse_mode", normalize(node.get("page_parse_mode").asText(null)));
+                if (node.hasNonNull("sheet_name")) row.put("sheet_name", normalize(node.get("sheet_name").asText(null)));
+                if (node.hasNonNull("table_region")) row.put("table_region", normalize(node.get("table_region").asText(null)));
+                if (node.hasNonNull("caption_provider")) row.put("caption_provider", normalize(node.get("caption_provider").asText(null)));
+                if (node.hasNonNull("content_type")) row.put("content_type", normalize(node.get("content_type").asText(null)));
+                if (node.hasNonNull("parser")) row.put("parser", normalize(node.get("parser").asText(null)));
+            } catch (Exception ignore) {
+            }
+        }
+        
         return row;
     }
 

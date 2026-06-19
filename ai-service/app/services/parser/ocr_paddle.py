@@ -20,6 +20,9 @@ class PaddleOcrProvider(OcrProvider):
         except ImportError as exc:
             logger.error("PaddleOCR is not installed. Please install paddleocr and paddlepaddle.")
             raise RuntimeError("PaddleOCR dependencies missing") from exc
+        except Exception as exc:
+            logger.error(f"Failed to initialize PaddleOCR: {exc}")
+            raise RuntimeError("PaddleOCR initialization failed") from exc
 
     def recognize_page(self, image_uri: str, page_no: int, metadata: dict[str, Any] | None = None) -> OcrResult:
         """

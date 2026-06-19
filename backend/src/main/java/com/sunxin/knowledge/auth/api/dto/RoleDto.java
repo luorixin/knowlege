@@ -9,4 +9,4 @@ public record RoleDto(
     Integer memberCount,
     Integer policyCount,
     Boolean isSystem
-) {}
+) implements java.io.Serializable {}

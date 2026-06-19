@@ -15,6 +15,7 @@ import com.sunxin.knowledge.auth.CurrentUser;
 import com.sunxin.knowledge.auth.CurrentUserResolver;
 import com.sunxin.knowledge.auth.PermissionAction;
 import com.sunxin.knowledge.common.api.ApiResponse;
+import com.sunxin.knowledge.common.dto.PageResponse;
 import com.sunxin.knowledge.common.error.NotFoundException;
 import com.sunxin.knowledge.knowledgebase.application.KnowledgeSpaceApplicationService;
 import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
@@ -28,8 +29,11 @@ import com.sunxin.knowledge.task.dto.UnifiedTaskResponse;
 
 import jakarta.validation.constraints.NotNull;
 
+import org.springframework.web.bind.annotation.RequestMapping;
+
 @Validated
 @RestController
+@RequestMapping("/api/v1/tasks")
 public class TaskController {
 
     private final DocumentParseTaskExecutionService executionService;
@@ -61,50 +65,53 @@ public class TaskController {
         this.currentUserResolver = currentUserResolver;
     }
 
-    @GetMapping("/api/v1/tasks/center")
-    public ApiResponse<List<UnifiedTaskResponse>> listUnifiedTasks(
+    @GetMapping("/center")
+    public ApiResponse<PageResponse<UnifiedTaskResponse>> listUnifiedTasks(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
             @RequestParam @NotNull Long spaceId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String taskCategory,
-            @RequestParam(defaultValue = "50") Integer limit
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
     ) {
         KbSpace space = spaceService.requireActiveSpace(spaceId);
         CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId, space.getTenantId());
         accessControlService.requireSpacePermission(space, currentUser, PermissionAction.SPACE_READ);
-        return ApiResponse.ok(taskCenterService.list(spaceId, status, taskCategory, limit));
+        return ApiResponse.ok(taskCenterService.list(spaceId, status, taskCategory, page, size));
     }
 
-    @GetMapping("/api/v1/tasks/parse")
-    public ApiResponse<List<ParseTaskResponse>> listParseTasks(
+    @GetMapping("/parse")
+    public ApiResponse<PageResponse<ParseTaskResponse>> listParseTasks(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
             @RequestParam @NotNull Long spaceId,
             @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "50") Integer limit
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
     ) {
         KbSpace space = spaceService.requireActiveSpace(spaceId);
         CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId, space.getTenantId());
         accessControlService.requireSpacePermission(space, currentUser, PermissionAction.SPACE_READ);
-        return ApiResponse.ok(executionService.list(spaceId, status, limit == null ? 50 : limit));
+        return ApiResponse.ok(executionService.list(spaceId, status, page, size));
     }
 
-    @GetMapping("/api/v1/tasks/embedding")
-    public ApiResponse<List<EmbeddingIndexTaskResponse>> listEmbeddingTasks(
+    @GetMapping("/embedding")
+    public ApiResponse<PageResponse<EmbeddingIndexTaskResponse>> listEmbeddingTasks(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
             @RequestParam @NotNull Long spaceId,
             @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "50") Integer limit
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
     ) {
         KbSpace space = spaceService.requireActiveSpace(spaceId);
         CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId, space.getTenantId());
         accessControlService.requireSpacePermission(space, currentUser, PermissionAction.SPACE_READ);
-        return ApiResponse.ok(embeddingExecutionService.list(spaceId, status, limit == null ? 50 : limit));
+        return ApiResponse.ok(embeddingExecutionService.list(spaceId, status, page, size));
     }
 
-    @PostMapping("/api/v1/tasks/center/{taskKey}/run")
+    @PostMapping("/center/{taskKey}/run")
     public ApiResponse<UnifiedTaskResponse> runUnifiedTask(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -114,7 +121,7 @@ public class TaskController {
         return ApiResponse.ok(taskCenterService.run(taskKey));
     }
 
-    @PostMapping("/api/v1/tasks/{taskId}/run")
+    @PostMapping("/{taskId}/run")
     public ApiResponse<ParseTaskResponse> runParseTask(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -124,7 +131,7 @@ public class TaskController {
         return ApiResponse.ok(executionService.process(taskId));
     }
 
-    @PostMapping("/api/v1/tasks/embedding/{taskId}/run")
+    @PostMapping("/embedding/{taskId}/run")
     public ApiResponse<EmbeddingIndexTaskResponse> runEmbeddingTask(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -134,7 +141,7 @@ public class TaskController {
         return ApiResponse.ok(embeddingExecutionService.process(taskId));
     }
 
-    @PostMapping("/api/v1/tasks/center/{taskKey}/retry")
+    @PostMapping("/center/{taskKey}/retry")
     public ApiResponse<UnifiedTaskResponse> retryUnifiedTask(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -144,7 +151,7 @@ public class TaskController {
         return ApiResponse.ok(taskCenterService.retry(taskKey));
     }
 
-    @PostMapping("/api/v1/tasks/{taskId}/retry")
+    @PostMapping("/{taskId}/retry")
     public ApiResponse<ParseTaskResponse> retryParseTask(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
@@ -154,7 +161,7 @@ public class TaskController {
         return ApiResponse.ok(executionService.retry(taskId));
     }
 
-    @PostMapping("/api/v1/tasks/embedding/{taskId}/retry")
+    @PostMapping("/embedding/{taskId}/retry")
     public ApiResponse<EmbeddingIndexTaskResponse> retryEmbeddingTask(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,

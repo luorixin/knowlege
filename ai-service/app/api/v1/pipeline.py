@@ -22,7 +22,7 @@ from app.services.embedding.openai import OpenAICompatibleHTTPProvider
 from app.services.llm.mock import MockLlmClient
 from app.services.llm.openai import OpenAICompatibleLLMClient
 from app.services.parser.mock import MockDocumentParser
-from app.services.parser.structured import ParserRouter, StructuredDocumentParser
+from app.services.parser.factory import build_structured_document_parser
 from app.services.rerank.http import HttpReranker
 from app.services.rerank.mock import MockReranker
 
@@ -35,8 +35,7 @@ def _build_parser():
 
 
 def _build_structured_parser():
-    settings = get_settings()
-    return StructuredDocumentParser(router=ParserRouter(enable_ocr=settings.parser_enable_ocr))
+    return build_structured_document_parser()
 
 
 def _build_chunker():

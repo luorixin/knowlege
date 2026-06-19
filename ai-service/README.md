@@ -29,6 +29,23 @@ Health check:
 curl http://localhost:8001/api/v1/health
 ```
 
+## Docker Deployment
+
+By default, the Docker image is lightweight and does NOT include the heavy dependencies required for OCR (like PaddleOCR).
+
+To build the image with OCR support:
+
+```bash
+docker build --build-arg AI_SERVICE_INSTALL_OCR=true -t knowledge-ai-service .
+```
+
+To run PaddleOCR locally on CPU without Docker, you may need to install specific packages:
+
+```bash
+python -m pip install paddlepaddle paddleocr
+```
+(On macOS, PaddleOCR might require additional system dependencies like `libomp` via Homebrew).
+
 ## Provider Configuration
 
 The service runs offline by default with mock providers. To call real model

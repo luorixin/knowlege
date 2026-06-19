@@ -62,6 +62,7 @@
         </router-link>
 
         <router-link
+          v-if="userStore.isAdmin"
           to="/eval"
           class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
           :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path.startsWith('/eval') }"
@@ -71,6 +72,7 @@
         </router-link>
 
         <router-link
+          v-if="userStore.isAdmin"
           to="/permissions"
           class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
           :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path.startsWith('/permissions') }"

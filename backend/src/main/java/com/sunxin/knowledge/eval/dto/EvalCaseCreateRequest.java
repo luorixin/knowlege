@@ -16,6 +16,9 @@ public record EvalCaseCreateRequest(
         @NotBlank
         String question,
 
+        @JsonProperty("case_type")
+        String caseType,
+
         @JsonProperty("expected_answer")
         String expectedAnswer,
 

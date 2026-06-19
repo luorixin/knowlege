@@ -43,6 +43,7 @@ import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentVersionRepository;
 import com.sunxin.knowledge.persistence.repository.KbEmbeddingIndexTaskRepository;
 import com.sunxin.knowledge.persistence.repository.KbSpaceRepository;
+import com.sunxin.knowledge.task.domain.TaskStatus;
 
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
@@ -103,8 +104,8 @@ class DocumentIngestionApiTest {
 
         mockMvc.perform(get("/api/v1/kb-spaces").param("tenantId", "1001"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].name").value("Proposal Knowledge"));
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].name").value("Proposal Knowledge"));
     }
 
     @Test
@@ -143,8 +144,8 @@ class DocumentIngestionApiTest {
 
         mockMvc.perform(get("/api/v1/kb-spaces/{spaceId}/documents", spaceId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].title").value("Case Study"));
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].title").value("Case Study"));
 
         mockMvc.perform(get("/api/v1/documents/{documentId}", documentId))
                 .andExpect(status().isOk())
@@ -211,7 +212,7 @@ class DocumentIngestionApiTest {
 
         mockMvc.perform(get("/api/v1/kb-spaces/{spaceId}/documents", spaceId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", empty()));
+                .andExpect(jsonPath("$.data.content", empty()));
     }
 
     @Test
@@ -230,14 +231,13 @@ class DocumentIngestionApiTest {
         MvcResult initialTasks = mockMvc.perform(get("/api/v1/tasks/center")
                         .param("spaceId", String.valueOf(spaceId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].task_key").value("parse-" + taskId))
-                .andExpect(jsonPath("$.data[0].task_category").value("PARSE_CHUNK"))
-                .andExpect(jsonPath("$.data[0].task_type").value("PARSE_AND_CHUNK"))
-                .andExpect(jsonPath("$.data[0].stage_label").value("文档解析 / 内容切片"))
-                .andExpect(jsonPath("$.data[0].runnable").value(true))
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].task_key").value("parse-" + taskId))
+                .andExpect(jsonPath("$.data.content[0].task_category").value("PARSE_CHUNK"))
+                .andExpect(jsonPath("$.data.content[0].task_type").value("PARSE_AND_CHUNK"))
+                .andExpect(jsonPath("$.data.content[0].stage_label").value("文档解析 / 内容切片"))
                 .andReturn();
-        assertThat(readStringList(initialTasks, "$.data[*].document_title")).contains("parse-me.txt");
+        assertThat(readStringList(initialTasks, "$.data.content[*].document_title")).contains("parse-me.txt");
 
         when(aiPipelineClient.parseDocument(any())).thenReturn(new DocumentParseResponse(
                 "doc",
@@ -265,17 +265,17 @@ class DocumentIngestionApiTest {
                         .param("spaceId", String.valueOf(spaceId))
                         .param("status", "PENDING"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].chunk_id").isString());
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].chunk_id").isString());
 
         MvcResult unifiedTasks = mockMvc.perform(get("/api/v1/tasks/center")
                         .param("spaceId", String.valueOf(spaceId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data.content", hasSize(2)))
                 .andReturn();
-        assertThat(readStringList(unifiedTasks, "$.data[*].task_category"))
+        assertThat(readStringList(unifiedTasks, "$.data.content[*].task_category"))
                 .contains("PARSE_CHUNK", "EMBEDDING_INDEX");
-        assertThat(readStringList(unifiedTasks, "$.data[*].task_type"))
+        assertThat(readStringList(unifiedTasks, "$.data.content[*].task_type"))
                 .contains("PARSE_AND_CHUNK", "EMBEDDING_AND_INDEX");
 
         mockMvc.perform(post("/api/v1/tasks/embedding/{taskId}/run", embeddingTaskId))
@@ -360,13 +360,114 @@ class DocumentIngestionApiTest {
         assertThat(chunk.getMetadataJson()).contains("\"confidence\":0.91");
 
         KbDocumentParseTask task = parseTaskRepository.findById(taskId).orElseThrow();
-        assertThat(task.getStatus()).isEqualTo("PARTIAL_SUCCESS");
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PARTIAL_SUCCESS);
         assertThat(task.getMetadataJson()).contains("\"parser\":\"PptParser\"");
         assertThat(task.getMetadataJson()).contains("\"error_count\":1");
         assertThat(task.getMetadataJson()).contains("PAGE_PARSE_FAILED");
 
         KbDocumentVersion version = documentVersionRepository.findById(versionId).orElseThrow();
         assertThat(version.getParseStatus()).isEqualTo("PARTIAL_SUCCESS");
+    }
+
+    @Test
+    void parseTaskKeepsMarkdownOnlyTableBlocks() throws Exception {
+        Long spaceId = createSpace();
+        MvcResult upload = mockMvc.perform(multipart("/api/v1/kb-spaces/{spaceId}/documents", spaceId)
+                        .file(new MockMultipartFile(
+                                "file",
+                                "table-only.xlsx",
+                                MediaType.TEXT_PLAIN_VALUE,
+                                "raw workbook".getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long taskId = readLong(upload, "$.data.parseTaskId");
+
+        when(aiPipelineClient.parseDocument(any())).thenReturn(new DocumentParseResponse(
+                "doc",
+                "version",
+                "SUCCESS",
+                java.util.List.of(new ParsedPage(
+                        1,
+                        "fallback-page",
+                        "text",
+                        "fallback page should not be used when blocks exist",
+                        java.util.Map.of("parser", "page")
+                )),
+                java.util.List.of(new ParsedBlock(
+                        "table-1",
+                        "table",
+                        2,
+                        "收入明细",
+                        "",
+                        "| 科目 | 金额 |\n| --- | --- |\n| 收入 | 1200 |",
+                        null,
+                        null,
+                        1.0,
+                        null,
+                        "doc:doc/version:version/page:2",
+                        java.util.Map.of("parser", "ExcelParser", "sheet_name", "收入明细")
+                )),
+                java.util.List.of(),
+                "| 科目 | 金额 |",
+                java.util.Map.of("parser", "ExcelParser", "page_count", 1, "block_count", 1)
+        ));
+
+        mockMvc.perform(post("/api/v1/tasks/center/{taskKey}/run", "parse-" + taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
+        KbDocumentChunk chunk = chunkRepository.findAll().getFirst();
+        assertThat(chunk.getContent()).contains("| 科目 | 金额 |");
+        assertThat(chunk.getContent()).doesNotContain("fallback page should not be used");
+        assertThat(chunk.getMetadataJson()).contains("\"block_type\":\"table\"");
+        assertThat(chunk.getMetadataJson()).contains("\"sheet_name\":\"收入明细\"");
+    }
+
+    @Test
+    void failedAiParseResponsePersistsStructuredMetadata() throws Exception {
+        Long spaceId = createSpace();
+        MvcResult upload = mockMvc.perform(multipart("/api/v1/kb-spaces/{spaceId}/documents", spaceId)
+                        .file(new MockMultipartFile(
+                                "file",
+                                "failed-scan.pdf",
+                                MediaType.APPLICATION_PDF_VALUE,
+                                "%PDF-1.7".getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long taskId = readLong(upload, "$.data.parseTaskId");
+        Long documentId = readLong(upload, "$.data.documentId");
+
+        when(aiPipelineClient.parseDocument(any())).thenReturn(new DocumentParseResponse(
+                "doc",
+                "version",
+                "FAILED",
+                java.util.List.of(),
+                java.util.List.of(),
+                java.util.List.of(new PageParseError(
+                        1,
+                        "OCR_RECOGNIZE_FAILED",
+                        "page 1 corrupt",
+                        java.util.Map.of("page_parse_mode", "scanned_image")
+                )),
+                "",
+                java.util.Map.of("parser", "OCRParser", "page_count", 0, "block_count", 0)
+        ));
+
+        mockMvc.perform(post("/api/v1/tasks/center/{taskKey}/run", "parse-" + taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.metadata.parser").value("OCRParser"))
+                .andExpect(jsonPath("$.data.metadata.error_count").value(1));
+
+        mockMvc.perform(get("/api/v1/documents/{documentId}/parse-status", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.metadata.parser").value("OCRParser"))
+                .andExpect(jsonPath("$.data.metadata.errors", hasSize(1)));
+
+        KbDocumentParseTask task = parseTaskRepository.findById(taskId).orElseThrow();
+        assertThat(task.getMetadataJson()).contains("\"parser\":\"OCRParser\"");
+        assertThat(task.getMetadataJson()).contains("OCR_RECOGNIZE_FAILED");
     }
 
     @Test
