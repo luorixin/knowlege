@@ -152,6 +152,8 @@ services:
     build:
       context: ../ai-service
       dockerfile: Dockerfile
+      args:
+        INSTALL_OCR: ${AI_SERVICE_INSTALL_OCR:-false}
     container_name: knowledge-ai-service
     env_file:
       - .env

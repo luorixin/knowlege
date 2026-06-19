@@ -20,6 +20,9 @@ public record RetrievalSearchRequest(
 
         @JsonProperty("top_k")
         @Min(1)
-        Integer topK
+        Integer topK,
+
+        @JsonProperty("expanded_queries")
+        java.util.List<String> expandedQueries
 ) {
 }

@@ -4,6 +4,7 @@ import com.sunxin.knowledge.retrieval.dto.SearchFilters;
 
 public record QuestionIntent(
         String query,
-        SearchFilters filters
+        SearchFilters filters,
+        java.util.List<String> expandedQueries
 ) {
 }

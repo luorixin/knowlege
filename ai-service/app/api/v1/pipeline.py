@@ -22,7 +22,7 @@ from app.services.embedding.openai import OpenAICompatibleHTTPProvider
 from app.services.llm.mock import MockLlmClient
 from app.services.llm.openai import OpenAICompatibleLLMClient
 from app.services.parser.mock import MockDocumentParser
-from app.services.parser.structured import StructuredDocumentParser
+from app.services.parser.structured import ParserRouter, StructuredDocumentParser
 from app.services.rerank.http import HttpReranker
 from app.services.rerank.mock import MockReranker
 
@@ -32,6 +32,11 @@ router = APIRouter(tags=["ai-pipeline"])
 def _build_parser():
     # provider selection is a TODO; mock is the MVP default.
     return MockDocumentParser()
+
+
+def _build_structured_parser():
+    settings = get_settings()
+    return StructuredDocumentParser(router=ParserRouter(enable_ocr=settings.parser_enable_ocr))
 
 
 def _build_chunker():
@@ -61,7 +66,7 @@ def _build_llm_client():
 
 parser = _build_parser()
 chunker = _build_chunker()
-structured_parser = StructuredDocumentParser()
+structured_parser = _build_structured_parser()
 
 
 @router.post("/pipeline/parse-and-chunk", response_model=ParseAndChunkResponse)

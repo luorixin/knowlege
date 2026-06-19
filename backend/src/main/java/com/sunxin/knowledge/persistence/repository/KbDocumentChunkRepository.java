@@ -35,9 +35,9 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
               and (cast(:serviceLine as string) is null or lower(document.serviceLine) = :serviceLine)
               and (cast(:createdFrom as timestamp) is null or document.createdAt is null or document.createdAt >= :createdFrom)
               and (
-                    :term1 is not null and lower(chunk.content) like lower(concat('%', :term1, '%'))
-                 or :term2 is not null and lower(chunk.content) like lower(concat('%', :term2, '%'))
-                 or :term3 is not null and lower(chunk.content) like lower(concat('%', :term3, '%'))
+                    :term1 is not null and lower(chunk.content) like lower(concat('%', cast(:term1 as string), '%'))
+                 or :term2 is not null and lower(chunk.content) like lower(concat('%', cast(:term2 as string), '%'))
+                 or :term3 is not null and lower(chunk.content) like lower(concat('%', cast(:term3 as string), '%'))
               )
               and (
                     :spaceOwner = true

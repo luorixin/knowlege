@@ -10,7 +10,9 @@ public class AiServiceProperties {
     private String endpoint = "http://localhost:8001";
     private String parsePath = "/api/parse/document";
     private String embeddingPath = "/api/v1/embeddings";
+    private String embeddingProvider = "openai";
     private String embeddingModel = "mock-embedding-v1";
+    private Integer embeddingDimension = 128;
     private Duration timeout = Duration.ofSeconds(60);
 
     public String getEndpoint() {
@@ -43,6 +45,22 @@ public class AiServiceProperties {
 
     public void setEmbeddingModel(String embeddingModel) {
         this.embeddingModel = embeddingModel;
+    }
+
+    public String getEmbeddingProvider() {
+        return embeddingProvider;
+    }
+
+    public void setEmbeddingProvider(String embeddingProvider) {
+        this.embeddingProvider = embeddingProvider;
+    }
+
+    public Integer getEmbeddingDimension() {
+        return embeddingDimension;
+    }
+
+    public void setEmbeddingDimension(Integer embeddingDimension) {
+        this.embeddingDimension = embeddingDimension;
     }
 
     public Duration getTimeout() {

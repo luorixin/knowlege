@@ -14,4 +14,11 @@ public interface KbQuerySessionRepository extends JpaRepository<KbQuerySession, 
             Long userId,
             String status
     );
+
+    java.util.List<KbQuerySession> findByTenantIdAndSpaceIdAndUserIdAndStatusOrderByCreatedAtDesc(
+            Long tenantId,
+            Long spaceId,
+            Long userId,
+            String status
+    );
 }

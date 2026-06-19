@@ -54,6 +54,7 @@ public class DocumentChunkingService {
     private final IdGenerator idGenerator;
     private final AccessControlService accessControlService;
     private final com.sunxin.knowledge.task.TaskEventProducer taskEventProducer;
+    private final com.sunxin.knowledge.integration.ai.AiServiceProperties aiProperties;
 
     public DocumentChunkingService(
             KbDocumentRepository documentRepository,
@@ -66,7 +67,8 @@ public class DocumentChunkingService {
             ObjectMapper objectMapper,
             IdGenerator idGenerator,
             AccessControlService accessControlService,
-            com.sunxin.knowledge.task.TaskEventProducer taskEventProducer
+            com.sunxin.knowledge.task.TaskEventProducer taskEventProducer,
+            com.sunxin.knowledge.integration.ai.AiServiceProperties aiProperties
     ) {
         this.documentRepository = documentRepository;
         this.versionRepository = versionRepository;
@@ -79,6 +81,7 @@ public class DocumentChunkingService {
         this.idGenerator = idGenerator;
         this.accessControlService = accessControlService;
         this.taskEventProducer = taskEventProducer;
+        this.aiProperties = aiProperties;
     }
 
     @Transactional
@@ -91,6 +94,28 @@ public class DocumentChunkingService {
         accessControlService.requireDocumentPermission(document, currentUser, PermissionAction.DOCUMENT_UPLOAD);
         KbDocumentVersion version = currentVersion(document);
         return rebuildChunksInternal(document, version, request, currentUser.userId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChunkResponse> listChunks(Long documentId, CurrentUser currentUser) {
+        KbDocument document = requireActiveDocument(documentId);
+        accessControlService.requireDocumentPermission(document, currentUser, PermissionAction.DOCUMENT_READ);
+        
+        return chunkRepository.findByDocId(document.getId()).stream().map(chunk -> {
+            String contentType = "text";
+            try {
+                if (chunk.getMetadataJson() != null && !chunk.getMetadataJson().isBlank()) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> map = objectMapper.readValue(chunk.getMetadataJson(), java.util.Map.class);
+                    if (map.get("content_type") != null) {
+                        contentType = String.valueOf(map.get("content_type"));
+                    }
+                }
+            } catch (Exception e) {
+                // Ignore parsing error, default to text
+            }
+            return ChunkResponse.fromEntity(chunk, contentType);
+        }).toList();
     }
 
     @Transactional
@@ -236,9 +261,9 @@ public class DocumentChunkingService {
             task.setDocId(document.getId());
             task.setVersionId(version.getId());
             task.setChunkId(chunk.getId());
-            task.setModelProvider("mock");
-            task.setModelName("mock-embedding");
-            task.setEmbeddingDimension(0);
+            task.setModelProvider(aiProperties.getEmbeddingProvider() != null ? aiProperties.getEmbeddingProvider() : "openai");
+            task.setModelName(aiProperties.getEmbeddingModel() != null ? aiProperties.getEmbeddingModel() : "mock-embedding-v1");
+            task.setEmbeddingDimension(aiProperties.getEmbeddingDimension() != null ? aiProperties.getEmbeddingDimension() : 128);
             task.setIndexName("knowledge_chunk_keyword");
             task.setVectorCollection("knowledge_chunk_vector");
             task.setStatus(PENDING);

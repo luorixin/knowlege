@@ -123,7 +123,9 @@ knowledge:
     endpoint: ${AI_SERVICE_ENDPOINT:http://localhost:8001}
     parse-path: ${AI_SERVICE_PARSE_PATH:/api/parse/document}
     embedding-path: ${AI_SERVICE_EMBEDDING_PATH:/api/v1/embeddings}
-    embedding-model: ${AI_SERVICE_EMBEDDING_MODEL:mock-embedding-v1}
+    embedding-provider: ${AI_EMBEDDING_PROVIDER:openai}
+    embedding-model: ${AI_EMBEDDING_MODEL:mock-embedding-v1}
+    embedding-dimension: ${AI_EMBEDDING_DIM:128}
     timeout: ${AI_SERVICE_TIMEOUT:60s}
   # LLM provider. mock | openai-compatible | qwen | private-http. Real providers are TODO.
   llm:

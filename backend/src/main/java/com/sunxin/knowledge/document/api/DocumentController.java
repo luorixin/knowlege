@@ -2,7 +2,10 @@ package com.sunxin.knowledge.document.api;
 
 import java.util.List;
 
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import com.sunxin.knowledge.auth.CurrentUser;
 import com.sunxin.knowledge.auth.CurrentUserResolver;
@@ -108,6 +113,38 @@ public class DocumentController {
         return ApiResponse.ok(documentService.delete(documentId, currentUser));
     }
 
+    @GetMapping("/api/v1/documents/{documentId}/download")
+    public ResponseEntity<Resource> download(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
+            @PathVariable @NotNull Long documentId
+    ) {
+        CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId);
+        Resource file = documentService.download(documentId, currentUser);
+        DocumentDetailResponse detail = documentService.detail(documentId, currentUser);
+        
+        String filename = detail.title();
+        // Simple sanitization for Content-Disposition header
+        filename = filename != null ? filename.replaceAll("[\"\\\\]", "") : "document";
+        
+        if (detail.sourceUri() != null) {
+            int lastDot = detail.sourceUri().lastIndexOf('.');
+            if (lastDot > 0 && lastDot > detail.sourceUri().lastIndexOf('/')) {
+                String ext = detail.sourceUri().substring(lastDot);
+                if (!filename.toLowerCase().endsWith(ext.toLowerCase())) {
+                    filename += ext;
+                }
+            }
+        }
+        
+        String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
+        
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"; filename*=UTF-8''" + encodedFilename)
+                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                .body(file);
+    }
+
     @GetMapping("/api/v1/documents/{documentId}/parse-status")
     public ApiResponse<DocumentParseStatusResponse> parseStatus(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
@@ -127,6 +164,16 @@ public class DocumentController {
     ) {
         CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId);
         return ApiResponse.ok(chunkingService.rebuildChunks(documentId, request, currentUser));
+    }
+
+    @GetMapping("/api/v1/documents/{documentId}/chunks")
+    public ApiResponse<List<com.sunxin.knowledge.document.dto.ChunkResponse>> listChunks(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-Tenant-Id", required = false) Long tenantId,
+            @PathVariable @NotNull Long documentId
+    ) {
+        CurrentUser currentUser = currentUserResolver.resolve(userId, tenantId);
+        return ApiResponse.ok(chunkingService.listChunks(documentId, currentUser));
     }
 
     @GetMapping("/api/v1/documents/{documentId}/desensitization-mappings")

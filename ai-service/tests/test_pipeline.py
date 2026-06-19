@@ -161,7 +161,7 @@ def test_openai_compatible_embedding_provider_builds_expected_payload(monkeypatc
     )
     monkeypatch.setattr(
         "app.services.embedding.openai.httpx.Client",
-        lambda timeout: fake_client,
+        lambda **kwargs: fake_client,
     )
 
     provider = OpenAICompatibleHTTPProvider()
@@ -192,7 +192,7 @@ def test_openai_compatible_llm_provider_builds_expected_payload(monkeypatch) -> 
             "usage": {"total_tokens": 12},
         }
     )
-    monkeypatch.setattr("app.services.llm.openai.httpx.Client", lambda timeout: fake_client)
+    monkeypatch.setattr("app.services.llm.openai.httpx.Client", lambda **kwargs: fake_client)
 
     provider = OpenAICompatibleLLMClient()
     response = provider.answer(
@@ -232,7 +232,7 @@ def test_http_reranker_builds_expected_payload_and_parses_results(monkeypatch) -
             ],
         }
     )
-    monkeypatch.setattr("app.services.rerank.http.httpx.Client", lambda timeout: fake_client)
+    monkeypatch.setattr("app.services.rerank.http.httpx.Client", lambda **kwargs: fake_client)
 
     provider = HttpReranker()
     response = provider.rerank(

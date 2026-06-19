@@ -43,22 +43,22 @@
       :closable="false"
     />
 
-    <div class="summary-strip">
-      <div class="summary-item">
-        <span class="summary-label">总任务</span>
-        <strong>{{ rows.length }}</strong>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-slate-400">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">总任务数</span>
+        <strong class="text-3xl font-bold text-slate-800">{{ rows.length }}</strong>
       </div>
-      <div class="summary-item">
-        <span class="summary-label">待处理</span>
-        <strong>{{ statusCount.PENDING }}</strong>
+      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-amber-400">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">待处理 (PENDING)</span>
+        <strong class="text-3xl font-bold text-amber-600">{{ statusCount.PENDING }}</strong>
       </div>
-      <div class="summary-item">
-        <span class="summary-label">运行中</span>
-        <strong>{{ statusCount.RUNNING }}</strong>
+      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-blue-400">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">运行中 (RUNNING)</span>
+        <strong class="text-3xl font-bold text-blue-600">{{ statusCount.RUNNING }}</strong>
       </div>
-      <div class="summary-item">
-        <span class="summary-label">失败</span>
-        <strong class="danger-number">{{ statusCount.FAILED }}</strong>
+      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-red-500" :class="{'opacity-75 grayscale': statusCount.FAILED === 0}">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">失败 (FAILED)</span>
+        <strong class="text-3xl font-bold" :class="statusCount.FAILED > 0 ? 'text-red-600' : 'text-slate-400'">{{ statusCount.FAILED }}</strong>
       </div>
     </div>
 
@@ -97,7 +97,13 @@
         </el-table-column>
         <el-table-column label="进度" width="160">
           <template #default="{ row }">
-            <el-progress :percentage="progress(row)" :status="progressStatus(row.status)" />
+            <el-progress 
+              :percentage="progress(row)" 
+              :status="progressStatus(row.status)" 
+              :striped="row.status === 'RUNNING'" 
+              :striped-flow="row.status === 'RUNNING'" 
+              :stroke-width="10"
+            />
           </template>
         </el-table-column>
         <el-table-column label="模型 / 索引目标" min-width="220" show-overflow-tooltip>
@@ -157,17 +163,36 @@
       </el-table>
     </div>
 
-    <el-dialog v-model="errorDialogVisible" title="错误明细" width="560px">
-      <el-descriptions :column="1" border>
-        <el-descriptions-item label="任务">{{ currentErrorTask?.task_key }}</el-descriptions-item>
-        <el-descriptions-item label="阶段">{{ currentErrorTask?.stage_label }}</el-descriptions-item>
-        <el-descriptions-item label="错误代码">{{ currentErrorTask?.error_code || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="错误信息">
-          <span class="text-danger">{{ currentErrorTask?.error_message || '-' }}</span>
-        </el-descriptions-item>
-      </el-descriptions>
+    <el-dialog v-model="errorDialogVisible" title="任务执行错误" width="640px" class="stitch-dialog">
+      <div v-if="currentErrorTask" class="flex flex-col gap-4">
+        <el-alert
+          type="error"
+          show-icon
+          :closable="false"
+          class="border border-red-200"
+        >
+          <template #title>
+            <span class="font-bold">阶段：{{ currentErrorTask.stage_label }}</span>
+          </template>
+          <p class="mt-1 m-0 text-sm opacity-90">任务 ID: {{ currentErrorTask.task_key }}</p>
+        </el-alert>
+        
+        <div class="stitch-card !p-4 bg-slate-50 border-slate-200">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">错误代码</span>
+            <el-tag size="small" type="danger" effect="plain" class="font-mono bg-white">{{ currentErrorTask.error_code || 'UNKNOWN_ERROR' }}</el-tag>
+          </div>
+          <div class="mt-4">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">详细堆栈与日志</span>
+            <div class="bg-slate-900 rounded-lg p-4 overflow-auto max-h-[300px]">
+              <code class="text-red-400 font-mono text-sm leading-relaxed whitespace-pre-wrap break-all">{{ currentErrorTask.error_message || 'No explicit error message provided.' }}</code>
+            </div>
+          </div>
+        </div>
+      </div>
       <template #footer>
-        <el-button @click="errorDialogVisible = false">关闭</el-button>
+        <el-button @click="errorDialogVisible = false" plain class="stitch-btn">关闭</el-button>
+        <el-button v-if="currentErrorTask?.retryable" type="warning" :icon="RefreshRight" @click="handleRetry(currentErrorTask); errorDialogVisible = false" class="stitch-btn">重新尝试</el-button>
       </template>
     </el-dialog>
   </section>
@@ -176,7 +201,7 @@
 <script setup lang="ts">
 import { Refresh, RefreshRight, VideoPlay, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { apiErrorMessage } from '@/api/http'
 import { listTaskCenter, retryTask, runTask } from '@/api/tasks'
@@ -199,6 +224,7 @@ const error = ref('')
 const operatingKey = ref('')
 const errorDialogVisible = ref(false)
 const currentErrorTask = ref<TaskCenterItem | null>(null)
+let pollingInterval: number | null = null
 
 const statusCount = computed(() => ({
   PENDING: rows.value.filter((item) => item.status === 'PENDING').length,
@@ -215,15 +241,28 @@ onMounted(async () => {
   if (spaceId.value) {
     await loadTasks()
   }
+  
+  pollingInterval = window.setInterval(async () => {
+    if (statusCount.value.PENDING > 0 || statusCount.value.RUNNING > 0) {
+      await loadTasks(true)
+    }
+  }, 3000)
+})
+
+onUnmounted(() => {
+  if (pollingInterval) {
+    window.clearInterval(pollingInterval)
+  }
 })
 
 watch(spaceId, (value) => {
   knowledgeStore.selectSpace(value)
 })
 
-async function loadTasks() {
+async function loadTasks(silent?: boolean | Event) {
+  const isSilent = silent === true
   if (!spaceId.value) return
-  loading.value = true
+  if (!isSilent) loading.value = true
   error.value = ''
   try {
     rows.value = await listTaskCenter({
@@ -233,9 +272,9 @@ async function loadTasks() {
       limit: 100,
     })
   } catch (err) {
-    error.value = apiErrorMessage(err)
+    if (!isSilent) error.value = apiErrorMessage(err)
   } finally {
-    loading.value = false
+    if (!isSilent) loading.value = false
   }
 }
 

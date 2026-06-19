@@ -53,7 +53,11 @@
       <!-- Footer/Metadata -->
       <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-mono">
         <span>ID: {{ String(citation.doc_id).substring(0,8) }}...</span>
-        <button class="hover:text-blue-600 transition-colors flex items-center gap-1 opacity-0 group-hover:opacity-100">
+        <button 
+          class="hover:text-blue-600 transition-colors flex items-center gap-1 opacity-0 group-hover:opacity-100"
+          @click="openSource(citation.source_uri, citation.doc_id)"
+          v-if="citation.source_uri"
+        >
           <span class="material-symbols-outlined text-[14px]">open_in_new</span>
           查看原文
         </button>
@@ -64,6 +68,7 @@
 
 <script setup lang="ts">
 import type { AgentCitation } from '@/api/types'
+import { http } from '@/api/http'
 
 defineOptions({
   name: 'CitationPanel',
@@ -75,4 +80,40 @@ withDefaults(defineProps<{
 }>(), {
   activeId: null
 })
+
+async function openSource(uri?: string, docId?: string | number) {
+  if (!uri) return
+  if (uri.startsWith('local://') && docId) {
+    try {
+      const response = await http.get(`/api/v1/documents/${docId}/download`, { responseType: 'blob' })
+      const contentType = response.headers['content-type']
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: contentType }))
+      
+      // Try to extract filename from Content-Disposition
+      let filename = 'document'
+      const disposition = response.headers['content-disposition']
+      if (disposition) {
+        const matchesUtf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
+        const matches = /filename="([^"]*)"/i.exec(disposition)
+        if (matchesUtf8 && matchesUtf8[1]) {
+          filename = decodeURIComponent(matchesUtf8[1])
+        } else if (matches && matches[1]) {
+          filename = matches[1]
+        }
+      }
+
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000)
+    } catch (e) {
+      console.error('Failed to download document', e)
+    }
+  } else {
+    window.open(uri, '_blank')
+  }
+}
 </script>

@@ -25,6 +25,7 @@ import com.sunxin.knowledge.persistence.repository.KbQuerySessionRepository;
 import com.sunxin.knowledge.qa.dto.AgentChatRequest;
 import com.sunxin.knowledge.qa.llm.LlmResponse;
 import com.sunxin.knowledge.retrieval.rerank.ContextCitation;
+import com.sunxin.knowledge.qa.dto.AgentCitationResponse;
 
 @Service
 public class AgentConversationRecorder {
@@ -80,6 +81,63 @@ public class AgentConversationRecorder {
         session.setStatus(ACTIVE);
         session.setMetadataJson(toJson(Map.of("agent", "knowledge-agent-mvp")));
         return sessionRepository.save(session);
+    }
+
+    public List<com.sunxin.knowledge.qa.llm.ChatMessage> getHistoryMessages(Long sessionId, int limit) {
+        if (sessionId == null) return List.of();
+        List<KbQueryMessage> messages = messageRepository.findBySessionIdOrderByCreatedAt(sessionId);
+        return messages.stream()
+                .skip(Math.max(0, messages.size() - limit))
+                .map(m -> new com.sunxin.knowledge.qa.llm.ChatMessage(m.getRole().toLowerCase(), m.getContent()))
+                .toList();
+    }
+
+    public List<KbQuerySession> listSessions(KbSpace space, CurrentUser user) {
+        return sessionRepository.findByTenantIdAndSpaceIdAndUserIdAndStatusOrderByCreatedAtDesc(
+                space.getTenantId(),
+                space.getId(),
+                user.userId(),
+                ACTIVE
+        );
+    }
+
+    public List<KbQueryMessage> getSessionMessages(Long sessionId, KbSpace space, CurrentUser user) {
+        KbQuerySession session = sessionRepository.findByIdAndTenantIdAndUserIdAndStatus(
+                        sessionId,
+                        space.getTenantId(),
+                        user.userId(),
+                        ACTIVE
+                )
+                .orElseThrow(() -> new NotFoundException("Query session not found"));
+        if (session.getSpaceId() != null && !session.getSpaceId().equals(space.getId())) {
+            throw new BadRequestException("Query session does not belong to requested knowledge space");
+        }
+        return messageRepository.findBySessionIdOrderByCreatedAt(sessionId);
+    }
+
+    public List<AgentCitationResponse> getMessageCitations(Long messageId) {
+        return citationRepository.findByMessageIdOrderByRankNo(messageId).stream()
+                .map(c -> {
+                    String docTitle = "";
+                    String sourceUri = null;
+                    if (c.getMetadataJson() != null) {
+                        try {
+                            Map<String, Object> map = objectMapper.readValue(c.getMetadataJson(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                            if (map.containsKey("doc_title")) docTitle = (String) map.get("doc_title");
+                            if (map.containsKey("source_uri")) sourceUri = (String) map.get("source_uri");
+                        } catch (Exception ignore) {}
+                    }
+                    return new AgentCitationResponse(
+                            c.getRankNo() != null ? c.getRankNo() : 0,
+                            c.getDocId(),
+                            docTitle,
+                            c.getPageNo(),
+                            c.getSectionTitle(),
+                            c.getQuoteText(),
+                            sourceUri
+                    );
+                })
+                .toList();
     }
 
     public KbQueryMessage saveUserMessage(KbQuerySession session, String query) {

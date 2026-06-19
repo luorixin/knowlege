@@ -77,8 +77,19 @@ public class RetrievalSearchService {
                 auditLogRecorder.detail("candidate_limit", candidateLimit)
         );
 
-        List<ScoredChunk> keywordResults = keywordSearchClient.search(request.query(), searchScope, candidateLimit);
-        List<ScoredChunk> vectorResults = vectorSearchClient.search(request.query(), searchScope, candidateLimit);
+        List<String> allQueries = new java.util.ArrayList<>();
+        allQueries.add(request.query());
+        if (request.expandedQueries() != null) {
+            allQueries.addAll(request.expandedQueries());
+        }
+
+        List<ScoredChunk> keywordResults = new java.util.ArrayList<>();
+        List<ScoredChunk> vectorResults = new java.util.ArrayList<>();
+
+        for (String q : allQueries) {
+            keywordResults.addAll(keywordSearchClient.search(q, searchScope, candidateLimit));
+            vectorResults.addAll(vectorSearchClient.search(q, searchScope, candidateLimit));
+        }
 
         List<RetrievalCandidate> candidates = merge(keywordResults, vectorResults);
         if (candidates.isEmpty()) {

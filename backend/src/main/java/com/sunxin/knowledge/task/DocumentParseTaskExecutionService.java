@@ -1,10 +1,13 @@
 package com.sunxin.knowledge.task;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -23,6 +26,7 @@ import com.sunxin.knowledge.document.support.DocumentType;
 import com.sunxin.knowledge.integration.ai.AiPipelineClient;
 import com.sunxin.knowledge.integration.ai.DocumentParseRequest;
 import com.sunxin.knowledge.integration.ai.DocumentParseResponse;
+import com.sunxin.knowledge.integration.ai.ParsedBlock;
 import com.sunxin.knowledge.persistence.entity.KbDocument;
 import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
 import com.sunxin.knowledge.persistence.entity.KbDocumentVersion;
@@ -39,6 +43,8 @@ public class DocumentParseTaskExecutionService {
     private static final String PENDING = "PENDING";
     private static final String RUNNING = "RUNNING";
     private static final String FAILED = "FAILED";
+    private static final String COMPLETED = "COMPLETED";
+    private static final String PARTIAL_SUCCESS = "PARTIAL_SUCCESS";
     private static final int RUNNING_PROGRESS = 10;
 
     private static final Logger log = LoggerFactory.getLogger(DocumentParseTaskExecutionService.class);
@@ -50,6 +56,7 @@ public class DocumentParseTaskExecutionService {
     private final AiPipelineClient aiPipelineClient;
     private final DocumentChunkingService chunkingService;
     private final TaskExecutionProperties properties;
+    private final ObjectMapper objectMapper;
 
     public DocumentParseTaskExecutionService(
             KbDocumentParseTaskRepository taskRepository,
@@ -58,7 +65,8 @@ public class DocumentParseTaskExecutionService {
             LocalStoredFileResolver localStoredFileResolver,
             AiPipelineClient aiPipelineClient,
             DocumentChunkingService chunkingService,
-            TaskExecutionProperties properties
+            TaskExecutionProperties properties,
+            ObjectMapper objectMapper
     ) {
         this.taskRepository = taskRepository;
         this.documentRepository = documentRepository;
@@ -67,6 +75,7 @@ public class DocumentParseTaskExecutionService {
         this.aiPipelineClient = aiPipelineClient;
         this.chunkingService = chunkingService;
         this.properties = properties;
+        this.objectMapper = objectMapper;
     }
 
     public Optional<ParseTaskResponse> processNextPending() {
@@ -92,11 +101,15 @@ public class DocumentParseTaskExecutionService {
                     localStoredFileResolver.resolve(version.getSourceUri()).toString(),
                     fileType(version)
             ));
+            if (FAILED.equals(parseResponse.status())) {
+                throw new BadRequestException("AI parser returned FAILED status");
+            }
             RebuildChunksRequest rebuildRequest = toRebuildChunksRequest(parseResponse);
             chunkingService.rebuildChunksFromPipeline(document.getId(), rebuildRequest, actorUserId(task));
+            markParseTaskResult(taskId, parseResponse);
             long elapsedMs = System.currentTimeMillis() - startedAt;
-            log.info("parse_task_complete task_id={} doc_id={} version_id={} status=COMPLETED elapsed_ms={}",
-                    taskId, docId, versionId, elapsedMs);
+            log.info("parse_task_complete task_id={} doc_id={} version_id={} status={} elapsed_ms={}",
+                    taskId, docId, versionId, normalizedAiStatus(parseResponse), elapsedMs);
             return ParseTaskResponse.fromEntity(taskRepository.findById(taskId).orElseThrow());
         } catch (RuntimeException ex) {
             long elapsedMs = System.currentTimeMillis() - startedAt;
@@ -190,7 +203,25 @@ public class DocumentParseTaskExecutionService {
     }
 
     private static RebuildChunksRequest toRebuildChunksRequest(DocumentParseResponse response) {
-        if (response == null || response.pages() == null || response.pages().isEmpty()) {
+        if (response == null) {
+            throw new BadRequestException("AI parser returned no response");
+        }
+        if (response.blocks() != null && !response.blocks().isEmpty()) {
+            List<ParsedPageRequest> pages = response.blocks().stream()
+                    .filter(block -> block.content() != null && !block.content().isBlank())
+                    .map(block -> new ParsedPageRequest(
+                            block.pageNo(),
+                            block.sectionTitle(),
+                            blockContentType(block),
+                            blockContent(block),
+                            blockMetadata(block)
+                    ))
+                    .toList();
+            if (!pages.isEmpty()) {
+                return new RebuildChunksRequest(null, null, pages);
+            }
+        }
+        if (response.pages() == null || response.pages().isEmpty()) {
             throw new BadRequestException("AI parser returned no pages");
         }
         List<ParsedPageRequest> pages = response.pages().stream()
@@ -207,6 +238,99 @@ public class DocumentParseTaskExecutionService {
             throw new BadRequestException("AI parser returned only blank pages");
         }
         return new RebuildChunksRequest(null, null, pages);
+    }
+
+    @Transactional
+    protected void markParseTaskResult(Long taskId, DocumentParseResponse response) {
+        String status = normalizedAiStatus(response);
+        KbDocumentParseTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new NotFoundException("Document parse task not found"));
+        task.setStatus(status);
+        task.setProgressPercent(100);
+        if (task.getFinishedAt() == null) {
+            task.setFinishedAt(LocalDateTime.now());
+        }
+        task.setErrorCode(PARTIAL_SUCCESS.equals(status) ? "PARTIAL_SUCCESS" : null);
+        task.setErrorMessage(PARTIAL_SUCCESS.equals(status) ? "Some pages failed to parse" : null);
+        task.setMetadataJson(toJson(parseMetadata(response)));
+        taskRepository.save(task);
+
+        versionRepository.findById(task.getVersionId()).ifPresent(version -> {
+            version.setParseStatus(status);
+            versionRepository.save(version);
+        });
+    }
+
+    private static String normalizedAiStatus(DocumentParseResponse response) {
+        if (response == null || response.status() == null || response.status().isBlank()) {
+            return COMPLETED;
+        }
+        return switch (response.status()) {
+            case "SUCCESS" -> COMPLETED;
+            case "PARTIAL_SUCCESS" -> PARTIAL_SUCCESS;
+            case "FAILED" -> FAILED;
+            default -> COMPLETED;
+        };
+    }
+
+    private static String blockContent(ParsedBlock block) {
+        if ("table".equalsIgnoreCase(block.blockType()) && block.markdown() != null && !block.markdown().isBlank()) {
+            return block.markdown();
+        }
+        return block.content();
+    }
+
+    private static String blockContentType(ParsedBlock block) {
+        if (block.blockType() == null || block.blockType().isBlank()) {
+            return "text";
+        }
+        return block.blockType().trim().toLowerCase();
+    }
+
+    private static Map<String, Object> blockMetadata(ParsedBlock block) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (block.metadata() != null) {
+            metadata.putAll(block.metadata());
+        }
+        metadata.put("block_id", block.blockId());
+        metadata.put("block_type", block.blockType());
+        metadata.put("source_uri", block.sourceUri());
+        if (block.bbox() != null) {
+            metadata.put("bbox", block.bbox());
+        }
+        if (block.confidence() != null) {
+            metadata.put("confidence", block.confidence());
+        }
+        if (block.imageUri() != null) {
+            metadata.put("image_uri", block.imageUri());
+        }
+        if (block.markdown() != null && !block.markdown().isBlank()) {
+            metadata.put("markdown", block.markdown());
+        }
+        return metadata;
+    }
+
+    private static Map<String, Object> parseMetadata(DocumentParseResponse response) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("ai_status", response.status());
+        metadata.put("page_count", response.pages() == null ? 0 : response.pages().size());
+        metadata.put("block_count", response.blocks() == null ? 0 : response.blocks().size());
+        metadata.put("error_count", response.errors() == null ? 0 : response.errors().size());
+        if (response.metadata() != null && !response.metadata().isEmpty()) {
+            metadata.putAll(response.metadata());
+        }
+        if (response.errors() != null && !response.errors().isEmpty()) {
+            metadata.put("errors", response.errors());
+        }
+        return metadata;
+    }
+
+    private String toJson(Map<String, Object> value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            throw new BadRequestException("Parse task metadata cannot be serialized");
+        }
     }
 
     private static Long actorUserId(KbDocumentParseTask task) {

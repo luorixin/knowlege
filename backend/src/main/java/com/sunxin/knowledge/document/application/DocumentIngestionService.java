@@ -30,6 +30,11 @@ import com.sunxin.knowledge.persistence.entity.KbSpace;
 import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentVersionRepository;
+import com.sunxin.knowledge.document.storage.LocalStoredFileResolver;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import java.net.MalformedURLException;
+import java.nio.file.Path;
 
 @Service
 public class DocumentIngestionService {
@@ -46,6 +51,7 @@ public class DocumentIngestionService {
     private final KbDocumentVersionRepository versionRepository;
     private final KbDocumentParseTaskRepository parseTaskRepository;
     private final FileStorageService fileStorageService;
+    private final LocalStoredFileResolver fileResolver;
     private final IdGenerator idGenerator;
     private final AccessControlService accessControlService;
     private final com.sunxin.knowledge.task.TaskEventProducer taskEventProducer;
@@ -56,6 +62,7 @@ public class DocumentIngestionService {
             KbDocumentVersionRepository versionRepository,
             KbDocumentParseTaskRepository parseTaskRepository,
             FileStorageService fileStorageService,
+            LocalStoredFileResolver fileResolver,
             IdGenerator idGenerator,
             AccessControlService accessControlService,
             com.sunxin.knowledge.task.TaskEventProducer taskEventProducer
@@ -65,6 +72,7 @@ public class DocumentIngestionService {
         this.versionRepository = versionRepository;
         this.parseTaskRepository = parseTaskRepository;
         this.fileStorageService = fileStorageService;
+        this.fileResolver = fileResolver;
         this.idGenerator = idGenerator;
         this.accessControlService = accessControlService;
         this.taskEventProducer = taskEventProducer;
@@ -139,6 +147,33 @@ public class DocumentIngestionService {
         document.setUpdatedBy(currentUser.userId());
         documentRepository.save(document);
         return new DocumentDeleteResponse(document.getId(), document.getStatus());
+    }
+
+    @Transactional(readOnly = true)
+    public Resource download(Long documentId, CurrentUser currentUser) {
+        KbDocument document = requireActiveDocument(documentId);
+        accessControlService.requireDocumentPermission(document, currentUser, PermissionAction.DOCUMENT_READ);
+        
+        String sourceUri = document.getSourceUri();
+        if (sourceUri == null) {
+            throw new NotFoundException("Document file not found");
+        }
+        
+        try {
+            if (sourceUri.startsWith("local://")) {
+                Path file = fileResolver.resolve(sourceUri);
+                Resource resource = new UrlResource(file.toUri());
+                if (resource.exists() || resource.isReadable()) {
+                    return resource;
+                } else {
+                    throw new NotFoundException("File does not exist or is not readable");
+                }
+            } else {
+                throw new BadRequestException("Unsupported storage protocol for direct download");
+            }
+        } catch (MalformedURLException e) {
+            throw new IllegalStateException("Could not read file", e);
+        }
     }
 
     @Transactional(readOnly = true)

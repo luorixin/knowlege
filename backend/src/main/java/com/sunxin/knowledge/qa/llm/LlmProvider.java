@@ -7,4 +7,8 @@ public interface LlmProvider {
     String modelName();
 
     LlmResponse generate(LlmRequest request);
+
+    void stream(LlmRequest request, java.util.function.Consumer<String> onNext, java.util.function.Consumer<LlmResponse> onComplete, java.util.function.Consumer<Throwable> onError);
+
+    java.util.List<String> expandQuery(String originalQuery, java.util.List<ChatMessage> history);
 }

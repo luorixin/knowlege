@@ -16,6 +16,12 @@ dependencies = [
 dev = [
     "pytest>=8.0.0"
 ]
+ocr = [
+    "PyMuPDF>=1.23.0",
+    "paddleocr>=2.7.0",
+    "paddlepaddle>=2.5.0",
+    "opencv-python-headless>=4.8.0"
+]
 # Optional: only needed when running deploy/scripts/milvus-init.py against a real Milvus.
 deploy = [
     "pymilvus>=2.4.0"

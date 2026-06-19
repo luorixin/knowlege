@@ -19,63 +19,71 @@
       :closable="false"
     />
 
-    <div class="stitch-card stitch-card-table">
-      <el-table
-        v-loading="knowledgeStore.loading"
-        :data="knowledgeStore.spaces"
-        row-key="id"
-        empty-text="暂无知识库"
-        class="stitch-table"
-      >
-        <el-table-column prop="name" label="知识库" min-width="220" />
-        <el-table-column prop="description" label="说明" min-width="260" show-overflow-tooltip />
-        <el-table-column prop="visibility" label="可见性" width="120">
-          <template #default="{ row }">
-            <el-tag effect="plain" class="stitch-tag">{{ row.visibility || 'PRIVATE' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="plain" class="stitch-tag">
-              {{ row.status }}
+    <div v-loading="knowledgeStore.loading" class="min-h-[200px]">
+      <div v-if="knowledgeStore.spaces.length === 0 && !knowledgeStore.loading" class="flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-slate-200/60 shadow-sm border-dashed">
+        <el-icon class="text-4xl text-slate-300 mb-4"><FolderOpened /></el-icon>
+        <p class="text-slate-500 m-0 mb-4">暂无知识库</p>
+        <el-button type="primary" plain @click="dialogVisible = true">立即创建</el-button>
+      </div>
+
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div 
+          v-for="space in knowledgeStore.spaces" 
+          :key="space.id" 
+          class="stitch-card flex flex-col cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg hover:border-blue-200 group"
+          @click="openDetail(space.id)"
+        >
+          <div class="flex justify-between items-start mb-3">
+            <h3 class="text-lg font-bold text-slate-900 m-0 line-clamp-1 group-hover:text-blue-600 transition-colors" :title="space.name">{{ space.name }}</h3>
+            <el-tag :type="space.status === 'ACTIVE' ? 'success' : 'info'" effect="light" round size="small" class="font-medium shrink-0 ml-2 border-none bg-slate-100" :class="{ '!bg-green-50 !text-green-600': space.status === 'ACTIVE' }">
+              {{ space.status }}
             </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="210" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row.id)">详情</el-button>
-            <el-button link type="primary" @click="selectAndChat(row.id)">问答</el-button>
-            <el-button link type="primary" @click="selectAndUpload(row.id)">上传</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          </div>
+          
+          <p class="text-slate-500 text-sm flex-1 mb-5 line-clamp-2 leading-relaxed" :title="space.description">
+            {{ space.description || '暂无说明' }}
+          </p>
+          
+          <div class="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
+            <div class="flex gap-2">
+              <el-tag size="small" effect="plain" type="info" class="border-slate-200 text-slate-500 bg-transparent">
+                {{ space.visibility === 'PRIVATE' ? '私有' : space.visibility }}
+              </el-tag>
+            </div>
+            <div class="flex gap-2" @click.stop>
+              <el-button link type="primary" class="!px-1" @click="selectAndUpload(space.id)">上传</el-button>
+              <el-button link type="primary" class="!px-1" @click="selectAndChat(space.id)">问答</el-button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <el-dialog v-model="dialogVisible" title="新建知识库" width="520px">
+    <el-dialog v-model="dialogVisible" title="新建知识库" width="520px" class="stitch-dialog">
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
         <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" maxlength="128" show-word-limit />
+          <el-input v-model="form.name" maxlength="128" show-word-limit placeholder="给您的知识库起个响亮的名字" />
         </el-form-item>
         <el-form-item label="说明">
-          <el-input v-model="form.description" type="textarea" :rows="3" maxlength="1024" show-word-limit />
+          <el-input v-model="form.description" type="textarea" :rows="3" maxlength="1024" show-word-limit placeholder="简单描述一下这个知识库的用途..." />
         </el-form-item>
         <el-form-item label="可见性">
           <el-select v-model="form.visibility" class="full-width">
             <el-option label="私有" value="PRIVATE" />
-            <el-option label="租户内" value="TENANT" />
+            <el-option label="租户内公开" value="TENANT" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false" plain>取消</el-button>
-        <el-button type="primary" :loading="creating" @click="createSpace" class="stitch-btn">创建</el-button>
+        <el-button @click="dialogVisible = false" plain class="stitch-btn">取消</el-button>
+        <el-button type="primary" :loading="creating" @click="createSpace" class="stitch-btn">创建知识库</el-button>
       </template>
     </el-dialog>
   </section>
 </template>
 
 <script setup lang="ts">
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, FolderOpened } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'

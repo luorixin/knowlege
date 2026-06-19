@@ -5,7 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-ocr.txt .
+ARG INSTALL_OCR=false
+RUN pip install --no-cache-dir -r requirements.txt \
+    && if [ "$INSTALL_OCR" = "true" ]; then pip install --no-cache-dir -r requirements-ocr.txt; fi
 
 COPY app ./app
 

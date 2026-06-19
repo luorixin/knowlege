@@ -149,6 +149,23 @@ export interface AgentChatResult {
   debug_info?: any
 }
 
+export interface AgentSessionDto {
+  id: EntityId
+  spaceId: EntityId
+  title: string
+  status: string
+  createdAt: string
+}
+
+export interface AgentMessageDto {
+  id: EntityId
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+  citations: AgentCitation[]
+  error: boolean
+}
+
 export interface EvalDataset {
   id: EntityId
   tenant_id: EntityId

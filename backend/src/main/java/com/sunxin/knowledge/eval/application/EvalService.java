@@ -176,7 +176,7 @@ public class EvalService {
         for (KbEvalCase evalCase : cases) {
             EvalCaseSpec spec = spec(evalCase);
             RetrievalSearchResponse retrieval = retrievalSearchService.search(
-                    new RetrievalSearchRequest(evalCase.getQuestion(), space.getId(), spec.filters(), topK),
+                    new RetrievalSearchRequest(evalCase.getQuestion(), space.getId(), spec.filters(), topK, java.util.List.of()),
                     resolvedUser
             );
             AgentChatResponse answer = answerClient.answer(space.getId(), evalCase.getQuestion(), spec, resolvedUser);

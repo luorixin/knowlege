@@ -29,6 +29,11 @@ class Settings(BaseSettings):
 
     # --- Parser ----------------------------------------------------------
     parser_enable_ocr: bool = False
+    ocr_provider: str = "mock"
+    vlm_provider: str = "mock"
+    vlm_model_name: str = "gpt-4o"
+    vlm_temperature: float = 0.2
+    ai_vlm_endpoint: str = ""
     parser_temp_dir: str = "/tmp/knowledge-ai"
 
     # --- Provider switches (mock = no external dependency) ---------------

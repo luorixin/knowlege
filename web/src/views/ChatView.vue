@@ -1,9 +1,34 @@
 <template>
   <div class="flex h-[calc(100vh-74px)] bg-slate-50 -mx-7 -my-6 overflow-hidden">
+    <!-- Left Column: History Sidebar -->
+    <aside v-show="showLeftSidebar" class="w-[220px] shrink-0 border-r border-slate-200/60 bg-slate-50 flex flex-col z-10 transition-all">
+      <div class="px-4 py-4 border-b border-slate-200/60 flex flex-col gap-3 shrink-0">
+        <button @click="newChat" class="flex items-center justify-center gap-2 w-full py-2 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors text-sm font-medium text-slate-700 shadow-sm">
+          <span class="material-symbols-outlined text-[18px]">add_comment</span>
+          新建对话
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
+        <div 
+          v-for="session in chatStore.sessions" 
+          :key="session.id"
+          @click="loadHistory(session.id)"
+          class="px-3 py-2.5 rounded-lg cursor-pointer text-sm transition-colors flex flex-col gap-1"
+          :class="chatStore.sessionId === session.id ? 'bg-blue-100 text-blue-900 font-semibold' : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 font-medium'"
+        >
+          <div class="truncate">{{ session.title || '新会话' }}</div>
+          <div class="text-[10px] opacity-60 font-normal">{{ formatDate(session.createdAt) }}</div>
+        </div>
+      </div>
+    </aside>
+
     <!-- Main Chat Area -->
     <main class="flex-1 flex flex-col relative min-w-0">
       <!-- Top Control Bar (replaces the left sidebar) -->
       <header class="flex items-center gap-4 px-8 py-4 bg-white/80 backdrop-blur-md border-b border-slate-200/60 z-10 shrink-0">
+        <button @click="showLeftSidebar = !showLeftSidebar" class="shrink-0 p-1 -ml-4 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors outline-none" title="切换历史会话侧边栏">
+          <span class="material-symbols-outlined text-[20px]">menu</span>
+        </button>
         <div class="flex items-center gap-2 font-semibold text-slate-800 shrink-0">
           <span class="material-symbols-outlined text-blue-800">filter_list</span>
           <span>知识库配置</span>
@@ -33,17 +58,24 @@
           </div>
         </el-popover>
 
-        <div class="ml-auto">
-          <button @click="chatStore.clear()" class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+        <div class="ml-auto flex items-center gap-3">
+          <button @click="chatStore.clear()" class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200">
             <span class="material-symbols-outlined text-[18px]">delete_sweep</span>
             清空对话
+          </button>
+          
+          <div class="w-px h-5 bg-slate-200"></div>
+
+          <button @click="showRightSidebar = !showRightSidebar" :class="showRightSidebar ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500 bg-white border-slate-200 hover:text-blue-600 hover:bg-slate-50'" class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border outline-none" title="切换证据溯源面板">
+            <span class="material-symbols-outlined text-[18px]">book_4</span>
+            溯源
           </button>
         </div>
       </header>
 
       <!-- Chat Feed -->
-      <div id="chat-container" class="flex-1 overflow-y-auto px-8 py-12 pb-48">
-        <div class="max-w-3xl mx-auto flex flex-col gap-12">
+      <div id="chat-container" class="flex-1 overflow-y-auto px-4 md:px-8 py-12 pb-48">
+        <div class="max-w-2xl 2xl:max-w-3xl mx-auto flex flex-col gap-12">
           <el-empty v-if="chatStore.messages.length === 0" :image-size="120" description="暂无对话，请在下方输入问题" />
 
           <article v-for="message in chatStore.messages" :key="message.id" class="group relative">
@@ -105,7 +137,7 @@
       </div>
 
       <!-- Input Area -->
-      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-3xl px-6">
+      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-2xl 2xl:max-w-3xl px-6 transition-all">
         <div class="bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-2xl p-2 flex items-end gap-2 transition-shadow focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.12)] focus-within:border-blue-300">
           <button class="shrink-0 p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors mb-0.5 outline-none">
             <span class="material-symbols-outlined">attach_file</span>
@@ -135,7 +167,7 @@
     </main>
 
     <!-- Right Column: Citations Sidebar -->
-    <aside class="w-[420px] shrink-0 border-l border-slate-200/60 bg-slate-50 flex flex-col shadow-[-4px_0_15px_rgba(0,0,0,0.02)] z-10">
+    <aside v-show="showRightSidebar" class="w-[300px] shrink-0 border-l border-slate-200/60 bg-slate-50 flex flex-col shadow-[-4px_0_15px_rgba(0,0,0,0.02)] z-10 transition-all">
       <div class="px-6 py-5 border-b border-slate-200/60 flex items-center justify-between bg-white/50 backdrop-blur-sm shrink-0">
         <div class="flex items-center gap-2 text-slate-800 font-semibold">
           <span class="material-symbols-outlined text-amber-600">book_4</span>
@@ -180,7 +212,7 @@
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
-import { computed, onMounted, reactive, ref, nextTick, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, nextTick, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -212,6 +244,23 @@ const currentDebugInfo = ref<any>(null)
 const debugActiveNames = ref(['1', '2'])
 const activeCitationId = ref<string | null>(null)
 
+const showLeftSidebar = ref(window.innerWidth >= 768)
+const showRightSidebar = ref(window.innerWidth >= 1024)
+
+function handleResize() {
+  if (window.innerWidth < 768) {
+    showLeftSidebar.value = false
+  } else if (!showLeftSidebar.value && window.innerWidth >= 768) {
+    showLeftSidebar.value = true
+  }
+
+  if (window.innerWidth < 1024) {
+    showRightSidebar.value = false
+  } else if (!showRightSidebar.value && window.innerWidth >= 1024) {
+    showRightSidebar.value = true
+  }
+}
+
 function openDebug(info: any) {
   currentDebugInfo.value = info
   debugVisible.value = true
@@ -224,7 +273,30 @@ onMounted(async () => {
     await knowledgeStore.ensureSpaces(userStore.tenantId)
   }
   spaceId.value = knowledgeStore.selectedSpaceId || knowledgeStore.spaces[0]?.id || null
+  if (spaceId.value) {
+    chatStore.loadSessions(spaceId.value)
+  }
+  window.addEventListener('resize', handleResize)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function newChat() {
+  chatStore.clear()
+}
+
+async function loadHistory(id: EntityId) {
+  if (!spaceId.value) return
+  await chatStore.loadHistory(spaceId.value, id)
+}
 
 // Auto-scroll chat to bottom
 watch(() => chatStore.messages.length, () => {
@@ -238,6 +310,8 @@ watch(() => chatStore.messages.length, () => {
 
 function selectSpace(value: EntityId) {
   knowledgeStore.selectSpace(value)
+  chatStore.clear()
+  chatStore.loadSessions(value)
 }
 
 async function send() {

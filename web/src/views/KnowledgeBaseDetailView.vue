@@ -1,14 +1,14 @@
 <template>
   <section class="page-section">
-    <div class="section-header">
-      <div class="header-title">
-        <h2>{{ space?.name || '知识库详情' }}</h2>
-        <p>Space ID：{{ spaceId }}</p>
+    <div class="section-header !mb-4">
+      <div class="header-title flex items-center gap-3">
+        <h2 class="text-2xl font-bold text-slate-900 m-0">{{ space?.name || '知识库详情' }}</h2>
+        <el-tag type="info" effect="plain" class="font-mono bg-slate-100 border-slate-200">ID: {{ spaceId }}</el-tag>
       </div>
       <div class="toolbar-actions">
-        <el-button plain :icon="Back" @click="router.push('/knowledge-bases')">返回</el-button>
-        <el-button type="primary" :icon="UploadFilled" @click="goUpload" class="stitch-btn">上传文档</el-button>
-        <el-button plain :icon="ChatDotRound" @click="goChat">进入问答</el-button>
+        <el-button plain :icon="Back" @click="router.push('/knowledge-bases')" class="stitch-btn">返回</el-button>
+        <el-button plain :icon="ChatDotRound" @click="goChat" class="stitch-btn">进入问答</el-button>
+        <el-button type="primary" :icon="UploadFilled" @click="goUpload" class="stitch-btn shadow-sm">上传文档</el-button>
       </div>
     </div>
 
@@ -18,60 +18,72 @@
       type="error"
       show-icon
       :closable="false"
+      class="mb-2"
     />
 
-    <div class="detail-grid">
-      <div class="stitch-card">
-        <el-descriptions class="info-panel" :column="2" border>
-          <el-descriptions-item label="名称">{{ space?.name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ space?.status || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="可见性">{{ space?.visibility || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="负责人">{{ space?.ownerUserId || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="说明" :span="2">{{ space?.description || '-' }}</el-descriptions-item>
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div class="xl:col-span-2 stitch-card flex flex-col justify-center">
+        <el-descriptions class="info-panel !border-none !p-0 !shadow-none bg-transparent" :column="2">
+          <el-descriptions-item label="描述说明" :span="2">
+            <span class="text-slate-600 leading-relaxed">{{ space?.description || '暂无说明' }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="可见性">
+            <el-tag size="small" type="info" effect="plain" class="bg-slate-50">{{ space?.visibility === 'PRIVATE' ? '私有' : '租户可见' }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag size="small" :type="space?.status === 'ACTIVE' ? 'success' : 'info'" effect="light" class="border-none font-medium" :class="{'bg-green-50 text-green-600': space?.status === 'ACTIVE'}">{{ space?.status || '-' }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="空间负责人">
+            <span class="text-slate-700 font-medium">{{ space?.ownerUserId || '-' }}</span>
+          </el-descriptions-item>
         </el-descriptions>
       </div>
 
-      <div class="metric-strip">
-        <div class="metric-item stitch-metric">
-          <span>文档数</span>
-          <strong>{{ documents.length }}</strong>
+      <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 gap-4">
+        <div class="stitch-card flex flex-col items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-slate-50 border-blue-100/50">
+          <span class="text-sm text-slate-500 font-medium mb-1">总文档数</span>
+          <strong class="text-3xl font-bold text-blue-900">{{ documents.length }}</strong>
         </div>
-        <div class="metric-item stitch-metric">
-          <span>解析中</span>
-          <strong>{{ parsingCount }}</strong>
+        <div class="stitch-card flex flex-col items-center justify-center p-4 bg-gradient-to-br from-amber-50 to-slate-50 border-amber-100/50">
+          <span class="text-sm text-slate-500 font-medium mb-1">解析处理中</span>
+          <strong class="text-3xl font-bold text-amber-700">{{ parsingCount }}</strong>
         </div>
-        <div class="metric-item stitch-metric">
-          <span>已启用</span>
-          <strong>{{ activeCount }}</strong>
+        <div class="stitch-card flex flex-col items-center justify-center p-4 bg-gradient-to-br from-green-50 to-slate-50 border-green-100/50 sm:col-span-1 xl:col-span-2">
+          <span class="text-sm text-slate-500 font-medium mb-1">已就绪 (ACTIVE)</span>
+          <strong class="text-3xl font-bold text-green-700">{{ activeCount }}</strong>
         </div>
       </div>
     </div>
 
-    <div class="stitch-card-table">
-      <div class="card-header">
-        <h3>文档列表</h3>
+    <div class="stitch-card stitch-card-table mt-2">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-slate-800 m-0">空间文档库</h3>
       </div>
       <el-table
         v-loading="loading"
         :data="documents"
         row-key="id"
-        empty-text="暂无文档"
+        empty-text="当前知识库暂无文档"
         class="stitch-table"
       >
-        <el-table-column prop="title" label="文档" min-width="240" />
+        <el-table-column prop="title" label="文档名称" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="font-medium text-slate-700">{{ row.title }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="docType" label="类型" width="120" />
         <el-table-column prop="industry" label="行业" width="140" />
         <el-table-column prop="serviceLine" label="服务线" width="160" />
         <el-table-column prop="status" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="plain" class="stitch-tag">
+            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="light" round class="stitch-tag border-none font-medium" :class="{'bg-green-50 text-green-600': row.status === 'ACTIVE', 'bg-slate-100 text-slate-600': row.status !== 'ACTIVE'}">
               {{ row.status }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="router.push(`/documents?docId=${row.id}`)">查看</el-button>
+            <el-button link type="primary" class="font-medium" @click="router.push(`/documents?docId=${row.id}`)">查阅详情</el-button>
           </template>
         </el-table-column>
       </el-table>

@@ -31,7 +31,12 @@ import com.jayway.jsonpath.JsonPath;
 import com.sunxin.knowledge.integration.ai.AiPipelineClient;
 import com.sunxin.knowledge.integration.ai.AiServiceException;
 import com.sunxin.knowledge.integration.ai.DocumentParseResponse;
+import com.sunxin.knowledge.integration.ai.PageParseError;
+import com.sunxin.knowledge.integration.ai.ParsedBlock;
 import com.sunxin.knowledge.integration.ai.ParsedPage;
+import com.sunxin.knowledge.persistence.entity.KbDocumentChunk;
+import com.sunxin.knowledge.persistence.entity.KbDocumentParseTask;
+import com.sunxin.knowledge.persistence.entity.KbDocumentVersion;
 import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
@@ -286,6 +291,82 @@ class DocumentIngestionApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.data.parseStatus").value("COMPLETED"));
+    }
+
+    @Test
+    void parseTaskUsesBlocksBeforePagesAndPreservesPartialSuccessMetadata() throws Exception {
+        Long spaceId = createSpace();
+        MvcResult upload = mockMvc.perform(multipart("/api/v1/kb-spaces/{spaceId}/documents", spaceId)
+                        .file(new MockMultipartFile(
+                                "file",
+                                "partial-ppt.pptx",
+                                MediaType.TEXT_PLAIN_VALUE,
+                                "raw deck".getBytes(StandardCharsets.UTF_8))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long taskId = readLong(upload, "$.data.parseTaskId");
+        Long documentId = readLong(upload, "$.data.documentId");
+        Long versionId = readLong(upload, "$.data.versionId");
+
+        when(aiPipelineClient.parseDocument(any())).thenReturn(new DocumentParseResponse(
+                "doc",
+                "version",
+                "PARTIAL_SUCCESS",
+                java.util.List.of(new ParsedPage(
+                        1,
+                        "fallback-page",
+                        "text",
+                        "page fallback should not be chunked",
+                        java.util.Map.of("parser", "page")
+                )),
+                java.util.List.of(new ParsedBlock(
+                        "block-1",
+                        "figure",
+                        3,
+                        "解决方案",
+                        "slide summary from block",
+                        "slide summary from block",
+                        null,
+                        java.util.List.of(1.0, 2.0, 3.0, 4.0),
+                        0.91,
+                        "local://deck.pptx#slide-3",
+                        "local://deck.pptx",
+                        java.util.Map.of("slide_summary", "方案摘要", "parser", "PptParser")
+                )),
+                java.util.List.of(new PageParseError(
+                        4,
+                        "PAGE_PARSE_FAILED",
+                        "broken slide",
+                        java.util.Map.of("slide_path", "ppt/slides/slide4.xml")
+                )),
+                "slide summary from block",
+                java.util.Map.of("parser", "PptParser", "page_count", 1, "block_count", 1)
+        ));
+
+        mockMvc.perform(post("/api/v1/tasks/center/{taskKey}/run", "parse-" + taskId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PARTIAL_SUCCESS"))
+                .andExpect(jsonPath("$.data.progress_percent").value(100));
+
+        KbDocumentChunk chunk = chunkRepository.findAll().getFirst();
+        assertThat(chunk.getDocId()).isEqualTo(documentId);
+        assertThat(chunk.getVersionId()).isEqualTo(versionId);
+        assertThat(chunk.getContent()).contains("slide summary from block");
+        assertThat(chunk.getContent()).doesNotContain("page fallback should not be chunked");
+        assertThat(chunk.getPageNo()).isEqualTo(3);
+        assertThat(chunk.getSectionTitle()).isEqualTo("解决方案");
+        assertThat(chunk.getMetadataJson()).contains("\"block_type\":\"figure\"");
+        assertThat(chunk.getMetadataJson()).contains("\"image_uri\":\"local://deck.pptx#slide-3\"");
+        assertThat(chunk.getMetadataJson()).contains("\"confidence\":0.91");
+
+        KbDocumentParseTask task = parseTaskRepository.findById(taskId).orElseThrow();
+        assertThat(task.getStatus()).isEqualTo("PARTIAL_SUCCESS");
+        assertThat(task.getMetadataJson()).contains("\"parser\":\"PptParser\"");
+        assertThat(task.getMetadataJson()).contains("\"error_count\":1");
+        assertThat(task.getMetadataJson()).contains("PAGE_PARSE_FAILED");
+
+        KbDocumentVersion version = documentVersionRepository.findById(versionId).orElseThrow();
+        assertThat(version.getParseStatus()).isEqualTo("PARTIAL_SUCCESS");
     }
 
     @Test

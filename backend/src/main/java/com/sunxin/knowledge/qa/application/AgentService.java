@@ -26,6 +26,8 @@ import com.sunxin.knowledge.persistence.repository.KbSpaceRepository;
 import com.sunxin.knowledge.qa.dto.AgentChatRequest;
 import com.sunxin.knowledge.qa.dto.AgentChatResponse;
 import com.sunxin.knowledge.qa.dto.AgentCitationResponse;
+import com.sunxin.knowledge.qa.dto.AgentSessionDto;
+import com.sunxin.knowledge.qa.dto.AgentMessageDto;
 import com.sunxin.knowledge.qa.llm.LlmProvider;
 import com.sunxin.knowledge.qa.llm.LlmRequest;
 import com.sunxin.knowledge.qa.llm.LlmResponse;
@@ -86,13 +88,50 @@ public class AgentService {
         this.accessControlService = accessControlService;
     }
 
+    @Transactional(readOnly = true)
+    public List<AgentSessionDto> listSessions(Long spaceId, CurrentUser user) {
+        KbSpace space = requireSpace(spaceId);
+        CurrentUser resolvedUser = resolveUser(user, space);
+        accessControlService.requireSpacePermission(space, resolvedUser, PermissionAction.AGENT_CHAT);
+
+        List<KbQuerySession> sessions = conversationRecorder.listSessions(space, resolvedUser);
+        return sessions.stream()
+                .map(s -> new AgentSessionDto(
+                        s.getId(),
+                        s.getSpaceId(),
+                        s.getTitle(),
+                        s.getStatus(),
+                        s.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AgentMessageDto> getSessionMessages(Long spaceId, Long sessionId, CurrentUser user) {
+        KbSpace space = requireSpace(spaceId);
+        CurrentUser resolvedUser = resolveUser(user, space);
+        accessControlService.requireSpacePermission(space, resolvedUser, PermissionAction.AGENT_CHAT);
+
+        return conversationRecorder.getSessionMessages(sessionId, space, resolvedUser).stream()
+                .map(m -> new AgentMessageDto(
+                        m.getId(),
+                        m.getRole(),
+                        m.getContent(),
+                        m.getCreatedAt(),
+                        conversationRecorder.getMessageCitations(m.getId()),
+                        "ERROR".equalsIgnoreCase(m.getStatus())
+                ))
+                .toList();
+    }
+
     @Transactional
     public AgentChatResponse chat(AgentChatRequest request, CurrentUser user) {
         KbSpace space = requireSpace(request.spaceId());
         CurrentUser resolvedUser = resolveUser(user, space);
         accessControlService.requireSpacePermission(space, resolvedUser, PermissionAction.AGENT_CHAT);
-        QuestionIntent intent = questionUnderstandingService.understand(request);
         KbQuerySession session = conversationRecorder.resolveSession(request, space, resolvedUser);
+        List<com.sunxin.knowledge.qa.llm.ChatMessage> history = conversationRecorder.getHistoryMessages(session.getId(), 10);
+        QuestionIntent intent = questionUnderstandingService.understand(request, history);
 
         RetrievalSearchResponse retrieval = retrieve(request, intent, resolvedUser);
         CandidateBundle bundle = enrichCandidates(retrieval.results());
@@ -101,12 +140,13 @@ public class AgentService {
         
         LlmResponse llmResponse;
         if (context.context() == null || context.context().isBlank()) {
-            llmResponse = new LlmResponse("未在当前知识库中找到可靠依据。");
+            llmResponse = new LlmResponse("未在当前知识库中找到可靠依据。", llmProvider.provider(), llmProvider.modelName(), 0, 0, 0L);
         } else {
             llmResponse = llmProvider.generate(new LlmRequest(
                     intent.query(),
                     context.context(),
-                    context.citations()
+                    context.citations(),
+                    history
             ));
         }
 
@@ -118,14 +158,7 @@ public class AgentService {
         );
         conversationRecorder.saveCitations(session, assistantMessage, context.citations(), bundle.chunksById());
 
-        Map<String, Object> debugInfo = null;
-        if (resolvedUser.roleCodes().contains("ADMIN") || resolvedUser.roleCodes().contains("admin") || resolvedUser.roleCodes().contains("KNOWLEDGE_ADMIN")) {
-            debugInfo = Map.of(
-                    "retrieval_results", retrieval.results(),
-                    "reranked_chunks", reranked,
-                    "final_context", context.context()
-            );
-        }
+        Map<String, Object> debugInfo = buildDebugInfo(resolvedUser, retrieval, reranked, context);
 
         return new AgentChatResponse(
                 session.getId(),
@@ -135,20 +168,97 @@ public class AgentService {
         );
     }
 
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter streamChat(AgentChatRequest request, CurrentUser user) {
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter = new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(600000L); // 10 minutes timeout
+        
+        new Thread(() -> {
+            try {
+                KbSpace space = requireSpace(request.spaceId());
+                CurrentUser resolvedUser = resolveUser(user, space);
+                accessControlService.requireSpacePermission(space, resolvedUser, PermissionAction.AGENT_CHAT);
+                KbQuerySession session = conversationRecorder.resolveSession(request, space, resolvedUser);
+                List<com.sunxin.knowledge.qa.llm.ChatMessage> history = conversationRecorder.getHistoryMessages(session.getId(), 10);
+                QuestionIntent intent = questionUnderstandingService.understand(request, history);
+
+                RetrievalSearchResponse retrieval = retrieve(request, intent, resolvedUser);
+                CandidateBundle bundle = enrichCandidates(retrieval.results());
+                List<RerankedChunk> reranked = rerank(intent, bundle.candidates());
+                ContextBuildResult context = contextBuilderService.build(new ContextBuildRequest(reranked, MAX_CONTEXT_CHARS));
+                
+                KbQueryMessage userMessage = conversationRecorder.saveUserMessage(session, intent.query());
+                Map<String, Object> debugInfo = buildDebugInfo(resolvedUser, retrieval, reranked, context);
+                List<AgentCitationResponse> citationResponses = toCitationResponses(context.citations(), bundle.chunksById());
+
+                if (context.context() == null || context.context().isBlank()) {
+                    String answer = "未在当前知识库中找到可靠依据。";
+                    LlmResponse llmResponse = new LlmResponse(answer, llmProvider.provider(), llmProvider.modelName(), 0, 0, 0L);
+                    emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name("message").data(answer));
+                    
+                    AgentChatResponse finalResponse = new AgentChatResponse(session.getId(), answer, citationResponses, debugInfo);
+                    emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name("done").data(finalResponse));
+                    
+                    KbQueryMessage assistantMessage = conversationRecorder.saveAssistantMessage(session, userMessage.getId(), llmResponse);
+                    conversationRecorder.saveCitations(session, assistantMessage, context.citations(), bundle.chunksById());
+                    emitter.complete();
+                    return;
+                }
+
+                LlmRequest llmRequest = new LlmRequest(intent.query(), context.context(), context.citations(), history);
+                llmProvider.stream(llmRequest, 
+                    chunk -> {
+                        try {
+                            emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name("message").data(chunk));
+                        } catch (Exception e) {
+                            emitter.completeWithError(e);
+                        }
+                    },
+                    response -> {
+                        try {
+                            AgentChatResponse finalResponse = new AgentChatResponse(session.getId(), response.answer(), citationResponses, debugInfo);
+                            emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name("done").data(finalResponse));
+                            
+                            KbQueryMessage assistantMessage = conversationRecorder.saveAssistantMessage(session, userMessage.getId(), response);
+                            conversationRecorder.saveCitations(session, assistantMessage, context.citations(), bundle.chunksById());
+                            emitter.complete();
+                        } catch (Exception e) {
+                            emitter.completeWithError(e);
+                        }
+                    },
+                    error -> {
+                        emitter.completeWithError(error);
+                    }
+                );
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        }).start();
+        
+        return emitter;
+    }
+
+    private Map<String, Object> buildDebugInfo(CurrentUser resolvedUser, RetrievalSearchResponse retrieval, List<RerankedChunk> reranked, ContextBuildResult context) {
+        if (resolvedUser.roleCodes().contains("ADMIN") || resolvedUser.roleCodes().contains("admin") || resolvedUser.roleCodes().contains("KNOWLEDGE_ADMIN")) {
+            return Map.of(
+                    "retrieval_results", retrieval.results(),
+                    "reranked_chunks", reranked,
+                    "final_context", context.context()
+            );
+        }
+        return null;
+    }
+
     private RetrievalSearchResponse retrieve(
             AgentChatRequest request,
             QuestionIntent intent,
-            CurrentUser user
+            CurrentUser resolvedUser
     ) {
-        return retrievalSearchService.search(
-                new RetrievalSearchRequest(
-                        intent.query(),
-                        request.spaceId(),
-                        intent.filters(),
-                        RETRIEVAL_TOP_K
-                ),
-                user
-        );
+        return retrievalSearchService.search(new RetrievalSearchRequest(
+                intent.query(),
+                request.spaceId(),
+                intent.filters(),
+                RETRIEVAL_TOP_K,
+                intent.expandedQueries()
+        ), resolvedUser);
     }
 
     private List<RerankedChunk> rerank(QuestionIntent intent, List<RerankCandidate> candidates) {
