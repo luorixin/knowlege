@@ -1,5 +1,8 @@
 package com.sunxin.knowledge.integration.opensearch;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -24,6 +27,7 @@ import com.sunxin.knowledge.integration.search.KeywordSearchClient;
 @ConditionalOnProperty(prefix = "knowledge.search", name = "engine", havingValue = "opensearch")
 @EnableConfigurationProperties(OpenSearchProperties.class)
 public class OpenSearchKeywordSearchClient implements KeywordSearchClient {
+    private static final Logger log = LoggerFactory.getLogger(OpenSearchKeywordSearchClient.class);
 
     private final RestClient restClient;
     private final OpenSearchProperties properties;
@@ -153,5 +157,18 @@ public class OpenSearchKeywordSearchClient implements KeywordSearchClient {
             return "http://localhost:9200";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    @Override
+    public void deleteChunk(String indexName, Long chunkId) {
+        try {
+            restClient.delete()
+                .uri("/{index}/_doc/{id}", indexName, chunkId.toString())
+                .retrieve()
+                .toBodilessEntity();
+            log.info("Successfully deleted keyword chunkId={} from OpenSearch index={}", chunkId, indexName);
+        } catch (Exception ex) {
+            log.warn("Exception deleting keyword document in OpenSearch: {}", ex.getMessage());
+        }
     }
 }

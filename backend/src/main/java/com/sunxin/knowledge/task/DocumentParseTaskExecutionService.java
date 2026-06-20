@@ -19,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sunxin.knowledge.common.error.BadRequestException;
 import com.sunxin.knowledge.common.error.NotFoundException;
+import com.sunxin.knowledge.document.cleaning.DocumentCleaningContext;
+import com.sunxin.knowledge.document.cleaning.DocumentCleaningService;
+import com.sunxin.knowledge.document.cleaning.DocumentCleaningService.CleanedDocumentResult;
 import com.sunxin.knowledge.document.application.DocumentChunkingService;
 import com.sunxin.knowledge.document.dto.ParsedPageRequest;
 import com.sunxin.knowledge.document.dto.RebuildChunksRequest;
@@ -56,6 +59,8 @@ public class DocumentParseTaskExecutionService {
     private final TaskExecutionProperties properties;
     private final ObjectMapper objectMapper;
 
+    private final DocumentCleaningService cleaningService;
+
     public DocumentParseTaskExecutionService(
             KbDocumentParseTaskRepository taskRepository,
             KbDocumentRepository documentRepository,
@@ -63,6 +68,7 @@ public class DocumentParseTaskExecutionService {
             LocalStoredFileResolver localStoredFileResolver,
             AiPipelineClient aiPipelineClient,
             DocumentChunkingService chunkingService,
+                                             DocumentCleaningService cleaningService,
             TaskExecutionProperties properties,
             ObjectMapper objectMapper
     ) {
@@ -72,6 +78,7 @@ public class DocumentParseTaskExecutionService {
         this.localStoredFileResolver = localStoredFileResolver;
         this.aiPipelineClient = aiPipelineClient;
         this.chunkingService = chunkingService;
+        this.cleaningService = cleaningService;
         this.properties = properties;
         this.objectMapper = objectMapper;
     }
@@ -106,7 +113,25 @@ public class DocumentParseTaskExecutionService {
                         taskId, docId, versionId, normalizedAiStatus(parseResponse), elapsedMs);
                 return ParseTaskResponse.fromEntity(taskRepository.findById(taskId).orElseThrow());
             }
-            RebuildChunksRequest rebuildRequest = toRebuildChunksRequest(parseResponse);
+            RebuildChunksRequest rawRequest = toRebuildChunksRequest(parseResponse);
+            DocumentCleaningContext context = new DocumentCleaningContext(docId, versionId, fileType(version));
+            com.sunxin.knowledge.document.cleaning.DocumentCleaningService.CleanedDocumentResult cleanedResult = cleaningService.clean(rawRequest.pages(), context);
+            java.util.List<com.sunxin.knowledge.document.dto.ParsedPageRequest> cleanedPages = cleanedResult.pages();
+            if (!cleanedPages.isEmpty()) {
+                com.sunxin.knowledge.document.dto.ParsedPageRequest firstPage = cleanedPages.get(0);
+                java.util.Map<String, Object> newMeta = new java.util.LinkedHashMap<>();
+                if (firstPage.metadata() != null) {
+                    newMeta.putAll(firstPage.metadata());
+                }
+                try {
+                    String reportJson = objectMapper.writeValueAsString(cleanedResult.report());
+                    newMeta.put("cleaning_report", reportJson);
+                    cleanedPages.set(0, new com.sunxin.knowledge.document.dto.ParsedPageRequest(firstPage.pageNo(), firstPage.sectionTitle(), firstPage.contentType(), firstPage.content(), newMeta));
+                } catch (Exception e) {
+                    log.error("Failed to serialize cleaning report", e);
+                }
+            }
+            RebuildChunksRequest rebuildRequest = new RebuildChunksRequest(null, null, cleanedPages);
             chunkingService.rebuildChunksFromPipeline(document.getId(), rebuildRequest, actorUserId(task));
             markParseTaskResult(taskId, parseResponse);
             long elapsedMs = System.currentTimeMillis() - startedAt;

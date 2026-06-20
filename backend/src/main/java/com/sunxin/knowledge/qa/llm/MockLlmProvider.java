@@ -74,13 +74,9 @@ public class MockLlmProvider implements LlmProvider {
     }
 
     @Override
-    public List<String> expandQuery(String originalQuery, List<ChatMessage> history) {
-        if (originalQuery == null || originalQuery.isBlank()) return List.of();
-        return List.of(
-                originalQuery + " 的详细定义",
-                originalQuery + " 的应用场景",
-                originalQuery + " 的相关策略"
-        );
+    public QueryRewriteResult rewriteQuery(String originalQuery, List<ChatMessage> history) {
+        if (originalQuery == null || originalQuery.isBlank()) return new QueryRewriteResult("", List.of());
+        return new QueryRewriteResult(originalQuery, List.of());
     }
 
     private static String answerFromContext(String context) {

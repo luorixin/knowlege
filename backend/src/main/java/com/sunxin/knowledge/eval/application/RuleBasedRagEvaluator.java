@@ -63,7 +63,10 @@ public class RuleBasedRagEvaluator {
                 unauthorizedCitationCount,
                 unauthorizedRetrievedCount,
                 permissionViolation,
-                reciprocalRank
+                reciprocalRank,
+                0.0,
+                0.0,
+                ""
         );
     }
 

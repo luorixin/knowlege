@@ -13,6 +13,12 @@ public record EvalMetricsResponse(
         @JsonProperty("no_answer_accuracy")
         double noAnswerAccuracy,
         @JsonProperty("permission_violation_count")
-        int permissionViolationCount
+        int permissionViolationCount,
+        @JsonProperty("average_context_relevance")
+        double averageContextRelevance,
+        @JsonProperty("average_answer_faithfulness")
+        double averageAnswerFaithfulness,
+        @JsonProperty("quality_gate_passed")
+        boolean qualityGatePassed
 ) {
 }

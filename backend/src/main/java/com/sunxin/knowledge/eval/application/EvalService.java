@@ -61,6 +61,7 @@ public class EvalService {
     private final RetrievalSearchService retrievalSearchService;
     private final EvalAnswerClient answerClient;
     private final RuleBasedRagEvaluator evaluator;
+    private final LlmAsAJudgeRagEvaluator llmEvaluator;
     private final RuleBasedParserEvaluator parserEvaluator;
     private final EvalReportAggregator aggregator;
     private final AccessControlService accessControlService;
@@ -77,12 +78,14 @@ public class EvalService {
             RetrievalSearchService retrievalSearchService,
             EvalAnswerClient answerClient,
             RuleBasedRagEvaluator evaluator,
+            LlmAsAJudgeRagEvaluator llmEvaluator,
             RuleBasedParserEvaluator parserEvaluator,
             EvalReportAggregator aggregator,
             AccessControlService accessControlService,
             IdGenerator idGenerator,
             ObjectMapper objectMapper
     ) {
+        this.llmEvaluator = llmEvaluator;
         this.datasetRepository = datasetRepository;
         this.caseRepository = caseRepository;
         this.resultRepository = resultRepository;

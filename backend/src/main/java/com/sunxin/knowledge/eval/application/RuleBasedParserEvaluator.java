@@ -42,7 +42,10 @@ public class RuleBasedParserEvaluator {
                     0,
                     0,
                     false,
-                    0.0
+                    0.0,
+                    0.0,
+                    0.0,
+                    ""
             );
         }
 
@@ -96,7 +99,10 @@ public class RuleBasedParserEvaluator {
                 0,
                 0,
                 false,
-                pass ? 1.0 : 0.0
+                pass ? 1.0 : 0.0,
+                0.0,
+                0.0,
+                ""
         );
     }
 }

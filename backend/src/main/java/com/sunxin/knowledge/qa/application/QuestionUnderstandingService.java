@@ -15,7 +15,7 @@ public class QuestionUnderstandingService {
 
     public QuestionIntent understand(AgentChatRequest request, java.util.List<com.sunxin.knowledge.qa.llm.ChatMessage> history) {
         String query = request.query().trim();
-        java.util.List<String> expanded = llmProvider.expandQuery(query, history);
-        return new QuestionIntent(query, request.filters(), expanded);
+        com.sunxin.knowledge.qa.llm.QueryRewriteResult result = llmProvider.rewriteQuery(query, history);
+        return new QuestionIntent(result.rewrittenQuery(), request.filters(), result.subQueries());
     }
 }

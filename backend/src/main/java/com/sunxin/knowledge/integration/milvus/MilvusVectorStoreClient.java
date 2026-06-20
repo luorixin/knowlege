@@ -1,5 +1,8 @@
 package com.sunxin.knowledge.integration.milvus;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -24,6 +27,7 @@ import com.sunxin.knowledge.integration.vector.VectorStoreClient;
 @ConditionalOnProperty(prefix = "knowledge.vector-store", name = "engine", havingValue = "milvus")
 @EnableConfigurationProperties(MilvusProperties.class)
 public class MilvusVectorStoreClient implements VectorStoreClient {
+    private static final Logger log = LoggerFactory.getLogger(MilvusVectorStoreClient.class);
 
     private final RestClient restClient;
     private final MilvusProperties properties;
@@ -159,5 +163,23 @@ public class MilvusVectorStoreClient implements VectorStoreClient {
             return "http://localhost:19530";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    @Override
+    public void delete(String collectionName, Long chunkId) {
+        try {
+            Map<String, Object> body = Map.of(
+                "collectionName", collectionName,
+                "filter", "chunk_id == " + chunkId
+            );
+            restClient.post()
+                .uri("/v1/vector/delete")
+                .body(body)
+                .retrieve()
+                .toBodilessEntity();
+            log.info("Successfully deleted vector chunkId={} from Milvus collection={}", chunkId, collectionName);
+        } catch (Exception ex) {
+            log.error("Exception deleting vector in Milvus", ex);
+        }
     }
 }

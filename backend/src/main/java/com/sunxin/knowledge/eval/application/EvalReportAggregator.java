@@ -12,7 +12,7 @@ public class EvalReportAggregator {
 
     public EvalMetricsResponse aggregate(List<EvalCaseReportResponse> reports) {
         if (reports == null || reports.isEmpty()) {
-            return new EvalMetricsResponse(0.0, 0.0, 0.0, 0.0, 0.0, 0);
+            return new EvalMetricsResponse(0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, false);
         }
 
         long answerableCount = reports.stream()
@@ -50,6 +50,9 @@ public class EvalReportAggregator {
                 .filter(EvalCaseReportResponse::expectNoAnswer)
                 .filter(EvalCaseReportResponse::noAnswerCorrect)
                 .count() / (double) noAnswerCaseCount;
+        double averageContextRelevance = reports.stream().mapToDouble(EvalCaseReportResponse::contextRelevanceScore).average().orElse(0.0);
+        double averageAnswerFaithfulness = reports.stream().mapToDouble(EvalCaseReportResponse::answerFaithfulnessScore).average().orElse(0.0);
+        boolean qualityGatePassed = averageContextRelevance >= 75.0 && averageAnswerFaithfulness >= 75.0;
         int permissionViolationCount = (int) reports.stream()
                 .filter(EvalCaseReportResponse::permissionViolation)
                 .count();
@@ -60,7 +63,10 @@ public class EvalReportAggregator {
                 round(mrr),
                 round(citationAccuracy),
                 round(noAnswerAccuracy),
-                permissionViolationCount
+                permissionViolationCount,
+                round(averageContextRelevance),
+                round(averageAnswerFaithfulness),
+                qualityGatePassed
         );
     }
 

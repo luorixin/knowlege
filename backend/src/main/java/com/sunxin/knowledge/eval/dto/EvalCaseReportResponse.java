@@ -33,6 +33,12 @@ public record EvalCaseReportResponse(
         @JsonProperty("permission_violation")
         boolean permissionViolation,
         @JsonProperty("reciprocal_rank")
-        double reciprocalRank
+        double reciprocalRank,
+        @JsonProperty("context_relevance_score")
+        double contextRelevanceScore,
+        @JsonProperty("answer_faithfulness_score")
+        double answerFaithfulnessScore,
+        @JsonProperty("llm_judge_reason")
+        String llmJudgeReason
 ) {
 }
