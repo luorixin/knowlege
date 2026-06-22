@@ -49,10 +49,27 @@ backend/src/main/resources/db/migration
 - `backend/src/main/resources/db/migration/V1__init_knowledge_schema.sql`
 - `docs/db/table-design.md`
 
-文档上传当前使用本地存储实现，默认目录为 `backend/data/uploads` 或启动命令所在目录下的 `data/uploads`。可通过环境变量覆盖：
+文档上传支持本地存储和 MinIO。默认使用本地目录 `backend/data/uploads`（或启动命令所在目录下的 `data/uploads`）：
 
 ```bash
+export KNOWLEDGE_STORAGE_TYPE=local
 export KNOWLEDGE_STORAGE_LOCAL_ROOT=/path/to/uploads
+```
+
+切换到 MinIO 后，上传文件会保存为 `minio://<bucket>/<object-key>`。解析任务会把对象下载到受控临时文件，调用 AI 解析服务后立即清理，不需要让 AI 容器直接持有 MinIO 密钥：
+
+```bash
+export KNOWLEDGE_STORAGE_TYPE=minio
+export MINIO_ENDPOINT=http://localhost:9000
+export MINIO_ROOT_USER=knowledge_minio
+export MINIO_ROOT_PASSWORD=change-me-local-minio
+export MINIO_BUCKET=knowledge-documents
+```
+
+使用 Docker Compose 时在 `deploy/.env` 设置 `KNOWLEDGE_STORAGE_TYPE=minio`，然后重建后端容器：
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build backend
 ```
 
 文档切片默认按约 800 个中文字符切分，并保留 100 个字符 overlap，可通过环境变量覆盖：
@@ -188,12 +205,15 @@ export EMBEDDING_DIMENSION=16
 export SEARCH_ENGINE=opensearch
 export OPENSEARCH_ENDPOINT=http://localhost:9200
 export SEARCH_INDEX_PREFIX=knowledge
+export RETRIEVAL_BRANCH_TIMEOUT=3s
 
 export VECTOR_STORE_ENGINE=milvus
 export MILVUS_ENDPOINT=http://localhost:19530
 export MILVUS_TOKEN=root:Milvus
 export VECTOR_COLLECTION_PREFIX=knowledge
 ```
+
+`RETRIEVAL_BRANCH_TIMEOUT` 是关键词和向量检索每个并发分支的上限。某一路超时或异常时会记录 `retrieval_branch_fallback` 日志并降级为空结果，其他成功分支仍参与合并；该值宜小于底层 OpenSearch/Milvus 客户端超时。
 
 AI 服务配置：
 

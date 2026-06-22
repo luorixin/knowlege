@@ -36,11 +36,16 @@ import com.sunxin.knowledge.persistence.entity.KbSpace;
 import com.sunxin.knowledge.persistence.repository.KbDocumentParseTaskRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentVersionRepository;
-import com.sunxin.knowledge.document.storage.LocalStoredFileResolver;
+import com.sunxin.knowledge.document.storage.StoredFileResolver;
+import com.sunxin.knowledge.document.storage.ResolvedStoredFile;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.core.io.InputStreamResource;
 import java.net.MalformedURLException;
 import java.nio.file.Path;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 @Service
 public class DocumentIngestionService {
@@ -53,7 +58,7 @@ public class DocumentIngestionService {
     private final KbDocumentVersionRepository versionRepository;
     private final KbDocumentParseTaskRepository parseTaskRepository;
     private final FileStorageService fileStorageService;
-    private final LocalStoredFileResolver fileResolver;
+    private final StoredFileResolver fileResolver;
     private final IdGenerator idGenerator;
     private final AccessControlService accessControlService;
     private final com.sunxin.knowledge.task.TaskEventProducer taskEventProducer;
@@ -64,7 +69,7 @@ public class DocumentIngestionService {
             KbDocumentVersionRepository versionRepository,
             KbDocumentParseTaskRepository parseTaskRepository,
             FileStorageService fileStorageService,
-            LocalStoredFileResolver fileResolver,
+            StoredFileResolver fileResolver,
             IdGenerator idGenerator,
             AccessControlService accessControlService,
             com.sunxin.knowledge.task.TaskEventProducer taskEventProducer
@@ -173,18 +178,38 @@ public class DocumentIngestionService {
         }
         
         try {
-            if (sourceUri.startsWith("local://")) {
-                Path file = fileResolver.resolve(sourceUri);
-                Resource resource = new UrlResource(file.toUri());
-                if (resource.exists() || resource.isReadable()) {
-                    return resource;
-                } else {
-                    throw new NotFoundException("File does not exist or is not readable");
+            ResolvedStoredFile resolvedFile = fileResolver.resolve(sourceUri);
+            Resource resource = new UrlResource(resolvedFile.path().toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                if (resolvedFile.temporary()) {
+                    resolvedFile.close();
                 }
-            } else {
-                throw new BadRequestException("Unsupported storage protocol for direct download");
+                throw new NotFoundException("File does not exist or is not readable");
             }
-        } catch (MalformedURLException e) {
+            if (resolvedFile.temporary()) {
+                return new InputStreamResource(new FilterInputStream(resource.getInputStream()) {
+                    @Override
+                    public void close() throws IOException {
+                        try {
+                            super.close();
+                        } finally {
+                            resolvedFile.close();
+                        }
+                    }
+                }) {
+                    @Override
+                    public long contentLength() throws IOException {
+                        return resource.contentLength();
+                    }
+                    @Override
+                    public String getFilename() {
+                        return resource.getFilename();
+                    }
+                };
+            } else {
+                return resource;
+            }
+        } catch (IOException e) {
             throw new IllegalStateException("Could not read file", e);
         }
     }

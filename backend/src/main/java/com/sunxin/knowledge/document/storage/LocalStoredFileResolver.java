@@ -19,7 +19,7 @@ public class LocalStoredFileResolver {
         this.rootDirectory = Path.of(properties.getLocalRoot()).toAbsolutePath().normalize();
     }
 
-    public Path resolve(String sourceUri) {
+    public ResolvedStoredFile resolve(String sourceUri) {
         if (sourceUri == null || !sourceUri.startsWith(LOCAL_PREFIX)) {
             throw new BadRequestException("Only local file storage can be parsed by the MVP task executor");
         }
@@ -28,6 +28,6 @@ public class LocalStoredFileResolver {
         if (!target.startsWith(rootDirectory)) {
             throw new BadRequestException("Invalid local file path");
         }
-        return target;
+        return ResolvedStoredFile.borrowed(target);
     }
 }

@@ -72,6 +72,8 @@ management:
         include: vector
 
 knowledge:
+  retrieval:
+    branch-timeout: ${RETRIEVAL_BRANCH_TIMEOUT:3s}
   security:
     enabled: ${KNOWLEDGE_SECURITY_ENABLED:true}
   jwt:
