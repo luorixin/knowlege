@@ -119,6 +119,7 @@ services:
       AI_SERVICE_PARSE_PATH: ${AI_SERVICE_PARSE_PATH:-/api/parse/document}
       AI_SERVICE_EMBEDDING_PATH: ${AI_SERVICE_EMBEDDING_PATH:-/api/v1/embeddings}
       AI_SERVICE_EMBEDDING_MODEL: ${AI_SERVICE_EMBEDDING_MODEL:-mock-embedding-v1}
+      AI_SERVICE_EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-qwen}
       AI_SERVICE_TIMEOUT: ${AI_SERVICE_TIMEOUT:-60s}
       BACKEND_EMBEDDING_PROVIDER: ${BACKEND_EMBEDDING_PROVIDER:-ai-service}
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-16}
@@ -136,6 +137,11 @@ services:
       VECTOR_STORE_FAIL_FAST: ${VECTOR_STORE_FAIL_FAST:-false}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KNOWLEDGE_SECURITY_ENABLED: "false"
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai-compatible}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-deepseek-chat}
+      LLM_API_KEY: ${LLM_API_KEY}
+      AI_LLM_ENDPOINT: ${AI_LLM_ENDPOINT:-https://api.deepseek.com/v1}
+      OPENAI_COMPATIBLE_BASE_URL: ${AI_LLM_ENDPOINT:-https://api.deepseek.com/v1}
     depends_on:
       postgres:
         condition: service_healthy

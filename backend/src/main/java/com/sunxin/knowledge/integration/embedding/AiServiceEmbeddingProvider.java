@@ -26,7 +26,8 @@ public class AiServiceEmbeddingProvider implements EmbeddingProvider {
 
     @Override
     public String providerName() {
-        return "ai-service";
+        String p = properties.getEmbeddingProvider();
+        return (p != null && !p.isBlank()) ? p : "ai-service";
     }
 
     @Override

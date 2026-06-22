@@ -112,6 +112,28 @@
           <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/permissions') ? 'text-neon-cyan' : 'text-slate-500'">shield</span>
           <span>Permissions</span>
         </router-link>
+
+        <router-link
+          v-if="userStore.isAdmin"
+          to="/audit-logs"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
+        >
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/audit-logs') ? 'text-neon-cyan' : 'text-slate-500'">manage_search</span>
+          <span>Audit Logs</span>
+        </router-link>
+
+        <router-link
+          v-if="userStore.isAdmin"
+          to="/token-usage"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
+        >
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/token-usage') ? 'text-neon-cyan' : 'text-slate-500'">analytics</span>
+          <span>Token Usage</span>
+        </router-link>
       </nav>
 
       <!-- Sidebar Footer User detail drawer panel -->

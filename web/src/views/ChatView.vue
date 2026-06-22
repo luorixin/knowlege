@@ -76,7 +76,7 @@
               <div class="relative">
                 <select
                   v-model="spaceId"
-                  @change="selectSpace($event.target.value)"
+                  @change="selectSpaceFromEvent"
                   class="bg-slate-950 px-3 py-1.5 rounded-lg border border-white/[0.08] text-xs font-mono text-neon-cyan focus:outline-none pr-8 appearance-none cursor-pointer"
                 >
                   <option v-for="space in knowledgeStore.spaces" :key="space.id" :value="space.id">
@@ -290,21 +290,21 @@
           <div v-if="chatStore.activeCitations?.length" class="space-y-4 pr-1">
             <div
               v-for="source in chatStore.activeCitations"
-              :key="source.id"
-              :id="'citation-card-' + source.id"
+              :key="source.citation_id"
+              :id="'citation-card-' + source.citation_id"
               :class="[
                 'group p-3.5 rounded-xl border transition-all relative',
-                activeCitationId === source.id
+                activeCitationId === source.citation_id
                   ? 'border-neon-cyan bg-cyan-950/30 scale-[1.02] shadow-[0_0_20px_rgba(0,240,255,0.25)]'
                   : 'border-white/[0.06] bg-slate-950/40 hover:border-white/15'
               ]"
             >
-              <div v-if="activeCitationId === source.id" class="absolute inset-0 bg-cyan-500/[0.02] animate-pulse rounded-xl pointer-events-none"></div>
+              <div v-if="activeCitationId === source.citation_id" class="absolute inset-0 bg-cyan-500/[0.02] animate-pulse rounded-xl pointer-events-none"></div>
 
               <div class="flex items-start justify-between mb-1.5 gap-2">
                 <span class="flex items-center gap-1.5">
                   <span class="font-mono font-bold text-[10px] bg-cyan-950 text-neon-cyan border border-neon-cyan/30 px-1.5 py-0.2 rounded shrink-0">
-                    [{{ source.id }}]
+                    [{{ source.citation_id }}]
                   </span>
                   <span class="text-xs font-semibold text-slate-100 truncate tracking-wide" :title="source.doc_title">
                     {{ source.doc_title || 'Unknown Document' }}
@@ -527,6 +527,13 @@ function selectSpace(value: EntityId) {
   knowledgeStore.selectSpace(value)
   chatStore.clear()
   chatStore.loadSessions(value)
+}
+
+function selectSpaceFromEvent(event: Event) {
+  const target = event.target as HTMLSelectElement | null
+  if (target?.value) {
+    selectSpace(target.value)
+  }
 }
 
 async function send() {

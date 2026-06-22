@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+import AuditLogsView from '@/views/AuditLogsView.vue'
 import ChatView from '@/views/ChatView.vue'
 import DocumentUploadView from '@/views/DocumentUploadView.vue'
 import DocumentsView from '@/views/DocumentsView.vue'
@@ -9,6 +10,7 @@ import KnowledgeBasesView from '@/views/KnowledgeBasesView.vue'
 import LoginView from '@/views/LoginView.vue'
 import PermissionsView from '@/views/PermissionsView.vue'
 import TasksView from '@/views/TasksView.vue'
+import TokenUsageView from '../views/TokenUsageView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -64,6 +66,18 @@ const router = createRouter({
       path: '/permissions',
       name: 'permissions',
       component: PermissionsView,
+      meta: { requireAdmin: true },
+    },
+    {
+      path: '/audit-logs',
+      name: 'audit-logs',
+      component: AuditLogsView,
+      meta: { requireAdmin: true },
+    },
+    {
+      path: '/token-usage',
+      name: 'token-usage',
+      component: TokenUsageView,
       meta: { requireAdmin: true },
     },
   ],

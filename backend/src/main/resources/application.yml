@@ -153,7 +153,7 @@ knowledge:
     model-name: ${LLM_MODEL_NAME:mock-llm}
     api-key: ${LLM_API_KEY:}
     openai-compatible:
-      base-url: ${OPENAI_COMPATIBLE_BASE_URL:https://api.openai.com/v1}
+      base-url: ${OPENAI_COMPATIBLE_BASE_URL:${AI_LLM_ENDPOINT:https://api.openai.com/v1}}
       timeout: ${OPENAI_COMPATIBLE_TIMEOUT:60s}
     qwen:
       base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com}

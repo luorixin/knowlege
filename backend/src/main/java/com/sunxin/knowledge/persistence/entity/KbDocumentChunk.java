@@ -97,7 +97,11 @@ public class KbDocumentChunk extends AuditableEntity {
     }
 
     public void setSectionTitle(String sectionTitle) {
-        this.sectionTitle = sectionTitle;
+        if (sectionTitle != null && sectionTitle.length() > 512) {
+            this.sectionTitle = sectionTitle.substring(0, 500) + "...";
+        } else {
+            this.sectionTitle = sectionTitle;
+        }
     }
 
     public String getContent() {

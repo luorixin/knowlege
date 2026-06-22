@@ -6,6 +6,14 @@ export interface ApiEnvelope<T> {
   data: T
 }
 
+export interface PageResult<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export interface KnowledgeSpace {
   id: EntityId
   tenantId: EntityId
@@ -230,4 +238,21 @@ export interface EvalRunResult {
   case_count: number
   metrics: EvalMetrics
   cases: EvalCaseReport[]
+}
+
+export interface AuditLogItem {
+  id: EntityId
+  tenant_id: EntityId
+  actor_user_id?: EntityId
+  action: string
+  resource_type?: string
+  resource_id?: string
+  result_status: string
+  trace_id?: string
+  request_method?: string
+  request_uri?: string
+  ip_address?: string
+  user_agent?: string
+  detail_json?: string
+  created_at?: string
 }
