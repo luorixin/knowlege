@@ -80,6 +80,7 @@ export const useChatStore = defineStore('chat', {
             if (msg) {
               msg.citations = result.citations || []
               msg.debugInfo = result.debug_info
+              if (result.answer) msg.content = result.answer
             }
             this.sending = false
             this.abortController = null

@@ -1,16 +1,15 @@
 package com.sunxin.knowledge.task;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sunxin.knowledge.common.dto.PageResponse;
 import com.sunxin.knowledge.common.error.BadRequestException;
 import com.sunxin.knowledge.common.error.NotFoundException;
 import com.sunxin.knowledge.integration.embedding.EmbeddingProvider;
@@ -25,9 +24,8 @@ import com.sunxin.knowledge.persistence.entity.KbEmbeddingIndexTask;
 import com.sunxin.knowledge.persistence.repository.KbDocumentChunkRepository;
 import com.sunxin.knowledge.persistence.repository.KbDocumentRepository;
 import com.sunxin.knowledge.persistence.repository.KbEmbeddingIndexTaskRepository;
-import com.sunxin.knowledge.task.dto.EmbeddingIndexTaskResponse;
-import com.sunxin.knowledge.common.dto.PageResponse;
 import com.sunxin.knowledge.task.domain.TaskStatus;
+import com.sunxin.knowledge.task.dto.EmbeddingIndexTaskResponse;
 
 @Service
 @EnableConfigurationProperties(EmbeddingTaskExecutionProperties.class)
@@ -67,7 +65,11 @@ public class EmbeddingIndexTaskExecutionService {
     }
 
     public EmbeddingIndexTaskResponse process(Long taskId) {
-        KbEmbeddingIndexTask task = markRunning(taskId);
+        Optional<KbEmbeddingIndexTask> claimedTask = claimPending(taskId);
+        if (claimedTask.isEmpty()) {
+            return EmbeddingIndexTaskResponse.fromEntity(currentTask(taskId));
+        }
+        KbEmbeddingIndexTask task = claimedTask.get();
         try {
             KbDocumentChunk chunk = chunkRepository.findById(task.getChunkId())
                     .orElseThrow(() -> new NotFoundException("Document chunk not found"));
@@ -128,21 +130,24 @@ public class EmbeddingIndexTaskExecutionService {
         }
     }
 
-    @Transactional
-    protected KbEmbeddingIndexTask markRunning(Long taskId) {
-        KbEmbeddingIndexTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new NotFoundException("Embedding index task not found"));
-        if (task.getStatus() != TaskStatus.PENDING && task.getStatus() != TaskStatus.RUNNING) {
-            throw new BadRequestException("Only PENDING embedding index tasks can be processed");
-        }
+    private Optional<KbEmbeddingIndexTask> claimPending(Long taskId) {
         LocalDateTime now = LocalDateTime.now();
-        task.setStatus(TaskStatus.RUNNING);
-        task.setProgressPercent(RUNNING_PROGRESS);
-        task.setStartedAt(now);
-        task.setFinishedAt(null);
-        task.setErrorCode(null);
-        task.setErrorMessage(null);
-        return taskRepository.save(task);
+        int claimed = taskRepository.claimPending(
+                taskId,
+                TaskStatus.PENDING,
+                TaskStatus.RUNNING,
+                RUNNING_PROGRESS,
+                now
+        );
+        if (claimed == 0) {
+            return Optional.empty();
+        }
+        return Optional.of(currentTask(taskId));
+    }
+
+    private KbEmbeddingIndexTask currentTask(Long taskId) {
+        return taskRepository.findById(taskId)
+                .orElseThrow(() -> new NotFoundException("Embedding index task not found"));
     }
 
     @Transactional
@@ -225,10 +230,6 @@ public class EmbeddingIndexTaskExecutionService {
                 embedding.vector(),
                 chunk.getMetadataJson()
         );
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static String limitMessage(String message) {

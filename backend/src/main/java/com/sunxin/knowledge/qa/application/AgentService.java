@@ -64,6 +64,7 @@ public class AgentService {
     private final RerankService rerankService;
     private final ContextBuilderService contextBuilderService;
     private final LlmProvider llmProvider;
+    private final AnswerSafetyGuard answerSafetyGuard;
     private final AgentConversationRecorder conversationRecorder;
     private final AccessControlService accessControlService;
     private final org.springframework.core.task.TaskExecutor taskExecutor;
@@ -77,6 +78,7 @@ public class AgentService {
             RerankService rerankService,
             ContextBuilderService contextBuilderService,
             LlmProvider llmProvider,
+            AnswerSafetyGuard answerSafetyGuard,
             AgentConversationRecorder conversationRecorder,
             AccessControlService accessControlService,
             @Qualifier("applicationTaskExecutor")
@@ -90,6 +92,7 @@ public class AgentService {
         this.rerankService = rerankService;
         this.contextBuilderService = contextBuilderService;
         this.llmProvider = llmProvider;
+        this.answerSafetyGuard = answerSafetyGuard;
         this.conversationRecorder = conversationRecorder;
         this.accessControlService = accessControlService;
         this.taskExecutor = taskExecutor;
@@ -171,6 +174,7 @@ public class AgentService {
                     context.citations(),
                     history
             ));
+            llmResponse = answerSafetyGuard.guard(llmResponse, context.citations());
         }
 
         KbQueryMessage userMessage = conversationRecorder.saveUserMessage(session, intent.query());
@@ -227,20 +231,21 @@ public class AgentService {
                 }
 
                 LlmRequest llmRequest = new LlmRequest(intent.query(), context.context(), context.citations(), history);
-                llmProvider.stream(llmRequest, 
+                llmProvider.stream(llmRequest,
                     chunk -> {
                         try {
                             emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name("message").data(chunk));
                         } catch (Exception e) {
-                            emitter.completeWithError(e);
+                            // Ignore broken pipe
                         }
                     },
                     response -> {
                         try {
-                            AgentChatResponse finalResponse = new AgentChatResponse(session.getId(), response.answer(), citationResponses, debugInfo);
+                            LlmResponse guardedResponse = answerSafetyGuard.guard(response, context.citations());
+                            AgentChatResponse finalResponse = new AgentChatResponse(session.getId(), guardedResponse.answer(), citationResponses, debugInfo);
                             emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event().name("done").data(finalResponse));
                             
-                            KbQueryMessage assistantMessage = conversationRecorder.saveAssistantMessage(session, userMessage.getId(), response);
+                            KbQueryMessage assistantMessage = conversationRecorder.saveAssistantMessage(session, userMessage.getId(), guardedResponse);
                             conversationRecorder.saveCitations(session, assistantMessage, context.citations(), bundle.chunksById());
                             emitter.complete();
                         } catch (Exception e) {

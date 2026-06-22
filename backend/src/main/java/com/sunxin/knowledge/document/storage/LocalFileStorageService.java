@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import com.sunxin.knowledge.common.error.BadRequestException;
@@ -14,6 +15,7 @@ import com.sunxin.knowledge.document.support.DocumentType;
 
 @Service
 @EnableConfigurationProperties(LocalStorageProperties.class)
+@ConditionalOnProperty(prefix = "knowledge.storage", name = "type", havingValue = "local", matchIfMissing = true)
 public class LocalFileStorageService implements FileStorageService {
 
     private final Path rootDirectory;

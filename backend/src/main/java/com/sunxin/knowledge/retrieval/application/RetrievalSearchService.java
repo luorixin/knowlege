@@ -8,9 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.task.TaskExecutor;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,7 +42,7 @@ public class RetrievalSearchService {
     private final KeywordChunkSearchClient keywordSearchClient;
     private final VectorChunkSearchClient vectorSearchClient;
     private final AuditLogRecorder auditLogRecorder;
-    private final TaskExecutor taskExecutor;
+    private final SearchBranchExecutor searchBranchExecutor;
 
     public RetrievalSearchService(
             KbSpaceRepository spaceRepository,
@@ -54,8 +51,7 @@ public class RetrievalSearchService {
             KeywordChunkSearchClient keywordSearchClient,
             VectorChunkSearchClient vectorSearchClient,
             AuditLogRecorder auditLogRecorder,
-            @Qualifier("applicationTaskExecutor")
-            TaskExecutor taskExecutor
+            SearchBranchExecutor searchBranchExecutor
     ) {
         this.spaceRepository = spaceRepository;
         this.documentRepository = documentRepository;
@@ -63,7 +59,7 @@ public class RetrievalSearchService {
         this.keywordSearchClient = keywordSearchClient;
         this.vectorSearchClient = vectorSearchClient;
         this.auditLogRecorder = auditLogRecorder;
-        this.taskExecutor = taskExecutor;
+        this.searchBranchExecutor = searchBranchExecutor;
     }
 
     @Transactional(readOnly = true)
@@ -95,8 +91,16 @@ public class RetrievalSearchService {
         List<CompletableFuture<List<ScoredChunk>>> vectorFutures = new ArrayList<>();
 
         for (String q : allQueries) {
-            keywordFutures.add(CompletableFuture.supplyAsync(() -> keywordSearchClient.search(q, searchScope, candidateLimit), taskExecutor));
-            vectorFutures.add(CompletableFuture.supplyAsync(() -> vectorSearchClient.search(q, searchScope, candidateLimit), taskExecutor));
+            keywordFutures.add(searchBranchExecutor.submit(
+                    "keyword",
+                    q,
+                    () -> keywordSearchClient.search(q, searchScope, candidateLimit)
+            ));
+            vectorFutures.add(searchBranchExecutor.submit(
+                    "vector",
+                    q,
+                    () -> vectorSearchClient.search(q, searchScope, candidateLimit)
+            ));
         }
 
         List<ScoredChunk> keywordResults = new ArrayList<>();

@@ -65,10 +65,10 @@ public class ContextBuilderService {
 
                 """.formatted(
                 citationNo,
-                defaultString(citation.docTitle(), "未知文档"),
+                sanitizeUntrustedText(defaultString(citation.docTitle(), "未知文档")),
                 pageRange(citation.startPageNo(), citation.endPageNo()),
-                defaultString(citation.sectionTitle(), "未命名章节"),
-                citation.content()
+                sanitizeUntrustedText(defaultString(citation.sectionTitle(), "未命名章节")),
+                sanitizeUntrustedText(citation.content())
         );
     }
 
@@ -107,6 +107,17 @@ public class ContextBuilderService {
             return defaultValue;
         }
         return value;
+    }
+
+    private static String sanitizeUntrustedText(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value
+                .replaceAll("(?i)</\\s*context\\s*>", "<\\\\/context>")
+                .replaceAll("(?i)<\\s*context\\b", "<context-data")
+                .replaceAll("\\[引用(\\d+)]", "[文档内引用$1]")
+                .replaceAll("(?m)^(\\s*)(System|Developer|Assistant|User)\\s*:", "$1$2\\\\:");
     }
 
     private static final class MergedCitation {
