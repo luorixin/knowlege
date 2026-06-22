@@ -262,16 +262,16 @@ html.light .cyber-panel-purple {
 }
 
 html.light .cyber-input, 
-html.light input, 
-html.light textarea, 
+html.light input:not(.no-cyber-focus), 
+html.light textarea:not(.no-cyber-focus), 
 html.light select {
   background-color: #ffffff !important;
   color: #0f172a !important;
   border-color: rgba(0, 0, 0, 0.15) !important;
 }
 html.light .cyber-input:focus,
-html.light input:focus, 
-html.light textarea:focus, 
+html.light input:not(.no-cyber-focus):focus, 
+html.light textarea:not(.no-cyber-focus):focus, 
 html.light select:focus {
   border-color: var(--color-neon-cyan) !important;
   box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15) !important;

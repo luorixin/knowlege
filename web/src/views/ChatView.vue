@@ -223,7 +223,7 @@
             </div>
 
             <!-- Loading State -->
-            <div v-if="chatStore.sending" class="flex flex-col items-start relative">
+            <div v-if="chatStore.sending && (!chatStore.messages.length || chatStore.messages[chatStore.messages.length - 1].content === '')" class="flex flex-col items-start relative">
                <div class="rounded-xl p-4 text-xs leading-relaxed max-w-[90%] border shadow-md cyber-panel border-white/[0.06] w-full max-w-md">
                  <span class="block text-[10px] font-mono tracking-wider uppercase text-slate-500 mb-2">AI:</span>
                  <div class="space-y-2">
@@ -246,13 +246,14 @@
             <span class="material-symbols-outlined text-[16px]">attach_file</span>
           </button>
           
-          <input
+          <textarea
             v-model="question"
-            type="text"
-            placeholder="Ask anything about enterprise knowledge..."
-            class="flex-1 bg-transparent px-3 text-xs text-white placeholder:text-slate-600 focus:outline-none font-sans"
-            @keydown.enter.prevent="send"
-          />
+            rows="3"
+            placeholder="Ask anything about enterprise knowledge... (Shift+Enter for new line)"
+            class="flex-1 bg-transparent px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none font-sans resize-y min-h-[60px] max-h-[150px] no-cyber-focus"
+            style="background: transparent !important; color: inherit !important; border: none !important; box-shadow: none !important;"
+            @keydown.enter.exact.prevent="send"
+          ></textarea>
 
           <button
             v-if="!chatStore.sending"
