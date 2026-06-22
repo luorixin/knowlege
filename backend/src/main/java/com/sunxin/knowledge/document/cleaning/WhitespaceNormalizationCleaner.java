@@ -27,10 +27,11 @@ public class WhitespaceNormalizationCleaner implements DocumentCleaner {
             // Remove multiple blank lines (keep at most one)
             cleaned = cleaned.replaceAll("\\n{3,}", "\n\n");
 
+            java.util.Map<String, Object> safeMeta = new java.util.LinkedHashMap<>(page.metadata() == null ? java.util.Map.of() : page.metadata());
             int diff = original.length() - cleaned.length();
             if (diff > 0) {
                 report.addCleanedCharCount(diff);
-                page.metadata().put("whitespace_cleaned", diff);
+                safeMeta.put("whitespace_cleaned", diff);
             }
 
             return new ParsedPageRequest(
@@ -38,7 +39,7 @@ public class WhitespaceNormalizationCleaner implements DocumentCleaner {
                     page.sectionTitle(),
                     page.contentType(),
                     cleaned.trim(),
-                    page.metadata()
+                    safeMeta
             );
         }).toList();
     }

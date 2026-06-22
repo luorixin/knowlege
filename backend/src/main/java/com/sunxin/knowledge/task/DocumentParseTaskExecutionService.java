@@ -114,6 +114,11 @@ public class DocumentParseTaskExecutionService {
                 return ParseTaskResponse.fromEntity(taskRepository.findById(taskId).orElseThrow());
             }
             RebuildChunksRequest rawRequest = toRebuildChunksRequest(parseResponse);
+
+            KbDocumentParseTask taskForStatus = taskRepository.findById(taskId).orElseThrow();
+            taskForStatus.setStatus(TaskStatus.CLEANING);
+            taskRepository.save(taskForStatus);
+
             DocumentCleaningContext context = new DocumentCleaningContext(docId, versionId, fileType(version));
             com.sunxin.knowledge.document.cleaning.DocumentCleaningService.CleanedDocumentResult cleanedResult = cleaningService.clean(rawRequest.pages(), context);
             java.util.List<com.sunxin.knowledge.document.dto.ParsedPageRequest> cleanedPages = cleanedResult.pages();
@@ -123,13 +128,10 @@ public class DocumentParseTaskExecutionService {
                 if (firstPage.metadata() != null) {
                     newMeta.putAll(firstPage.metadata());
                 }
-                try {
-                    String reportJson = objectMapper.writeValueAsString(cleanedResult.report());
-                    newMeta.put("cleaning_report", reportJson);
-                    cleanedPages.set(0, new com.sunxin.knowledge.document.dto.ParsedPageRequest(firstPage.pageNo(), firstPage.sectionTitle(), firstPage.contentType(), firstPage.content(), newMeta));
-                } catch (Exception e) {
-                    log.error("Failed to serialize cleaning report", e);
+                if (cleanedResult.report() != null) {
+                    newMeta.put("cleaning_report", cleanedResult.report().toMap());
                 }
+                cleanedPages.set(0, new com.sunxin.knowledge.document.dto.ParsedPageRequest(firstPage.pageNo(), firstPage.sectionTitle(), firstPage.contentType(), firstPage.content(), newMeta));
             }
             RebuildChunksRequest rebuildRequest = new RebuildChunksRequest(null, null, cleanedPages);
             chunkingService.rebuildChunksFromPipeline(document.getId(), rebuildRequest, actorUserId(task));

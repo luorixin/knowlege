@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -200,7 +201,7 @@ public class DocumentChunkingService {
         version.setUpdatedBy(actorUserId);
         versionRepository.save(version);
 
-        markParseTaskCompleted(document, version, savedChunks.size(), totalTokens);
+        markParseTaskCompleted(document, version, savedChunks.size(), totalTokens, chunkingStrategyVersion(drafts));
         createEmbeddingIndexTasks(document, version, newChunks, actorUserId);
 
         List<ChunkResponse> chunkResponses = new ArrayList<>();
@@ -220,7 +221,8 @@ public class DocumentChunkingService {
             KbDocument document,
             KbDocumentVersion version,
             int chunkCount,
-            int totalTokens
+            int totalTokens,
+            String chunkingStrategyVersion
     ) {
         KbDocumentParseTask task = parseTaskRepository.findFirstByDocIdAndVersionIdOrderByCreatedAtDesc(
                 document.getId(),
@@ -239,10 +241,24 @@ public class DocumentChunkingService {
         task.setFinishedAt(now);
         task.setErrorCode(null);
         task.setErrorMessage(null);
-        task.setMetadataJson("""
-                {"chunk_count":%d,"total_tokens":%d}
-                """.formatted(chunkCount, totalTokens).strip());
+        try {
+            task.setMetadataJson(objectMapper.writeValueAsString(Map.of(
+                    "chunk_count", chunkCount,
+                    "total_tokens", totalTokens,
+                    "chunking_strategy_version", chunkingStrategyVersion
+            )));
+        } catch (JsonProcessingException ex) {
+            throw new BadRequestException("Chunk task metadata cannot be serialized");
+        }
         parseTaskRepository.save(task);
+    }
+
+    private static String chunkingStrategyVersion(List<ChunkDraft> drafts) {
+        if (drafts.isEmpty() || drafts.get(0).metadata() == null) {
+            return "unknown";
+        }
+        Object value = drafts.get(0).metadata().get("chunking_strategy_version");
+        return value == null ? "unknown" : value.toString();
     }
 
     private void createEmbeddingIndexTasks(

@@ -199,7 +199,7 @@ public class EvalService {
                 int inaccessibleExpectedTargets = inaccessibleExpectedTargets(spec, resolvedUser);
                 int unauthorizedCitations = unauthorizedCitations(answer, resolvedUser);
                 int unauthorizedRetrieved = unauthorizedRetrieved(retrieval, resolvedUser);
-                EvalCaseReportResponse report = evaluator.evaluate(
+                EvalCaseReportResponse ruleReport = evaluator.evaluate(
                         evalCase.getId(),
                         evalCase.getQuestion(),
                         spec,
@@ -209,8 +209,29 @@ public class EvalService {
                         unauthorizedCitations,
                         unauthorizedRetrieved
                 );
+                com.sunxin.knowledge.eval.application.LlmAsAJudgeRagEvaluator.JudgeResult judgeResult = llmEvaluator.evaluate(evalCase.getQuestion(), retrieval, answer);
+                EvalCaseReportResponse report = new EvalCaseReportResponse(
+                        ruleReport.caseId(),
+                        ruleReport.question(),
+                        ruleReport.expectNoAnswer(),
+                        ruleReport.actualAnswer(),
+                        ruleReport.retrievedChunkIds(),
+                        ruleReport.retrievedDocIds(),
+                        ruleReport.citedDocIds(),
+                        ruleReport.recallHit(),
+                        ruleReport.citationAccuracy(),
+                        ruleReport.noAnswerCorrect(),
+                        ruleReport.inaccessibleExpectedTargetCount(),
+                        ruleReport.unauthorizedCitationCount(),
+                        ruleReport.unauthorizedRetrievedCount(),
+                        ruleReport.permissionViolation(),
+                        ruleReport.reciprocalRank(),
+                        judgeResult.contextRelevanceScore(),
+                        judgeResult.answerFaithfulnessScore(),
+                        judgeResult.reason()
+                );
                 reports.add(report);
-                saveResult(dataset, evalCase, runId, answer, report, "RULE_BASED");
+                saveResult(dataset, evalCase, runId, answer, report, "RULE_BASED_AND_LLM");
             }
         }
 

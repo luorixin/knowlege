@@ -49,6 +49,14 @@ knowledge:
     fail-fast: ${VECTOR_STORE_FAIL_FAST:false}
   embedding:
     provider: ${BACKEND_EMBEDDING_PROVIDER:${EMBEDDING_PROVIDER:mock}}
+  chunking:
+    target-size: ${KNOWLEDGE_CHUNK_TARGET_SIZE:700}
+    max-size: ${KNOWLEDGE_CHUNK_MAX_SIZE:${KNOWLEDGE_CHUNK_SIZE:1000}}
+    min-size: ${KNOWLEDGE_CHUNK_MIN_SIZE:120}
+    overlap: ${KNOWLEDGE_CHUNK_OVERLAP:80}
+    sentence-boundary-enabled: ${KNOWLEDGE_CHUNK_SENTENCE_BOUNDARY_ENABLED:true}
+    table-header-repeat-enabled: ${KNOWLEDGE_CHUNK_TABLE_HEADER_REPEAT_ENABLED:true}
+    strategy-version: ${KNOWLEDGE_CHUNK_STRATEGY_VERSION:semantic-v1}
   kafka:
     enabled: ${KNOWLEDGE_KAFKA_ENABLED:true}
   ai-service:

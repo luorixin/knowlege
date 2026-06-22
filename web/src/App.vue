@@ -1,145 +1,162 @@
 <template>
   <router-view v-if="isBlankLayout" />
 
-  <div v-else class="flex min-h-screen font-sans bg-slate-50 text-slate-900">
+  <div v-else class="relative min-h-screen bg-[#02050f] text-slate-100 flex flex-col md:flex-row overflow-hidden font-sans select-none cyber-grid-overlay">
+    
+    <!-- Mobile Sticky Header Bar -->
+    <div class="md:hidden flex items-center justify-between p-4 bg-[#050b18] border-b border-[#00f0ff]/10 w-full shrink-0 z-40 relative">
+      <div class="flex items-center space-x-3 select-none">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center border border-neon-cyan/20">
+          <span class="material-symbols-outlined w-4 h-4 text-neon-cyan animate-pulse text-[16px] leading-none">memory</span>
+        </div>
+        <div>
+          <span class="block font-display font-black text-xs tracking-wider text-white uppercase">Enterprise KB</span>
+        </div>
+      </div>
+      <button
+        @click="isSidebarOpen = !isSidebarOpen"
+        class="p-1.5 border border-[#00f0ff]/20 bg-slate-950/80 rounded-lg text-neon-cyan hover:text-white hover:border-neon-cyan/50 transition-all cursor-pointer flex items-center justify-center select-none"
+        title="Toggle Navigation Menu"
+      >
+        <span class="material-symbols-outlined text-[18px]">{{ isSidebarOpen ? 'close' : 'menu' }}</span>
+      </button>
+    </div>
+
     <!-- Sidebar -->
-    <aside class="fixed left-0 top-0 h-full w-[260px] flex flex-col p-4 gap-2 border-r border-slate-200 z-50 bg-white/70 backdrop-blur-xl">
-      <!-- Logo Section -->
-      <div class="flex items-center gap-4 p-2 mb-4">
-        <div class="w-10 h-10 bg-blue-700 text-white flex items-center justify-center rounded-lg font-black text-2xl shrink-0">K</div>
-        <div class="flex flex-col">
-          <span class="text-lg font-bold text-blue-700 leading-tight">Enterprise KB</span>
-          <span class="text-[11px] text-slate-500 tracking-wider mt-0.5">Management Console</span>
+    <aside :class="[
+      'w-full md:w-64 bg-[#050b18] border-r border-[#00f0ff]/10 flex-col shrink-0 z-30 transition-all duration-200',
+      isSidebarOpen ? 'flex' : 'hidden md:flex'
+    ]">
+      
+      <!-- Branding header block -->
+      <div class="p-6 pb-2 border-b border-white/[0.05] flex items-center space-x-3 select-none">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center border border-neon-cyan/20">
+          <span class="material-symbols-outlined text-neon-cyan animate-pulse text-[20px] leading-none">memory</span>
+        </div>
+        <div>
+          <span class="block font-display font-black text-sm tracking-widest text-white uppercase">Enterprise KB</span>
+          <span class="block text-[9px] font-mono text-neon-cyan/85 tracking-widest uppercase mt-0.5">Console Unit</span>
         </div>
       </div>
 
-      <!-- Navigation Menu -->
-      <nav class="flex flex-col gap-1 grow">
+      <!-- Sidebar nav menu links -->
+      <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
         <router-link
           to="/knowledge-bases"
-          class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
-          active-class="bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0"
-          :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path.startsWith('/knowledge-bases') }"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
         >
-          <span class="material-symbols-outlined text-xl transition-transform duration-200 hover:scale-110">database</span>
-          <span>知识库管理</span>
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/knowledge-bases') ? 'text-neon-cyan' : 'text-slate-500'">database</span>
+          <span>Knowledge Base</span>
         </router-link>
-        
+
         <router-link
           to="/documents/upload"
-          class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
-          :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path.startsWith('/documents/upload') }"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
         >
-          <span class="material-symbols-outlined text-xl transition-transform duration-200 hover:scale-110">upload_file</span>
-          <span>文档上传</span>
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/documents/upload') ? 'text-neon-cyan' : 'text-slate-500'">upload_file</span>
+          <span>Document Upload</span>
         </router-link>
 
         <router-link
           to="/documents"
-          class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
-          :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path === '/documents' }"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
         >
-          <span class="material-symbols-outlined text-xl transition-transform duration-200 hover:scale-110">folder_managed</span>
-          <span>文档管理</span>
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path === '/documents' ? 'text-neon-cyan' : 'text-slate-500'">folder_managed</span>
+          <span>Document Mgmt</span>
         </router-link>
 
         <router-link
           to="/chat"
-          class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
-          :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path.startsWith('/chat') }"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
         >
-          <span class="material-symbols-outlined text-xl transition-transform duration-200 hover:scale-110">chat_bubble</span>
-          <span>智能问答</span>
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/chat') ? 'text-neon-cyan' : 'text-slate-500'">chat_bubble</span>
+          <span>RAG Q&A</span>
         </router-link>
 
         <router-link
           to="/tasks"
-          class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
-          :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path.startsWith('/tasks') }"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
         >
-          <span class="material-symbols-outlined text-xl transition-transform duration-200 hover:scale-110">analytics</span>
-          <span>任务监控</span>
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/tasks') ? 'text-neon-cyan' : 'text-slate-500'">analytics</span>
+          <span>Task Telemetry</span>
         </router-link>
 
         <router-link
           v-if="userStore.isAdmin"
           to="/eval"
-          class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
-          :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path.startsWith('/eval') }"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
         >
-          <span class="material-symbols-outlined text-xl transition-transform duration-200 hover:scale-110">dataset</span>
-          <span>评估数据集</span>
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/eval') ? 'text-neon-cyan' : 'text-slate-500'">dataset</span>
+          <span>Eval Datasets</span>
         </router-link>
 
         <router-link
           v-if="userStore.isAdmin"
           to="/permissions"
-          class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-700 text-[13px] font-medium transition-all duration-200 hover:bg-slate-200/50 hover:translate-x-1"
-          :class="{ 'bg-blue-100 !text-slate-900 font-bold border-l-4 border-blue-700 !translate-x-0': $route.path.startsWith('/permissions') }"
+          @click="isSidebarOpen = false"
+          class="w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-xs font-mono tracking-wider transition-all cursor-pointer border border-transparent text-slate-400 hover:text-white hover:bg-white/[0.015]"
+          active-class="bg-gradient-to-r from-cyan-950/40 to-cyan-500/[0.05] border-neon-cyan/30 text-white font-bold"
         >
-          <span class="material-symbols-outlined text-xl transition-transform duration-200 hover:scale-110">shield_person</span>
-          <span>权限管理</span>
+          <span class="material-symbols-outlined text-[18px]" :class="$route.path.startsWith('/permissions') ? 'text-neon-cyan' : 'text-slate-500'">shield</span>
+          <span>Permissions</span>
         </router-link>
       </nav>
 
-      <!-- Sidebar Footer -->
-      <div class="mt-auto border-t border-slate-200 pt-4 pl-2">
-        <div class="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
-          <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span>System Online</span>
+      <!-- Sidebar Footer User detail drawer panel -->
+      <div class="p-4.5 border-t border-white/[0.05] bg-[#030612]/60 mt-auto text-xs font-mono text-slate-400">
+        <div class="flex items-center justify-between mb-3">
+          <span class="block text-[9px] uppercase tracking-wider text-slate-500">System Mode</span>
+          <button @click="toggleTheme" class="flex items-center gap-1 text-slate-400 hover:text-white transition-colors cursor-pointer outline-none">
+            <span class="material-symbols-outlined text-[14px]">{{ isLightMode ? 'dark_mode' : 'light_mode' }}</span>
+            <span class="text-[9px] uppercase tracking-wider">{{ isLightMode ? 'Dark' : 'Light' }}</span>
+          </button>
         </div>
+        <div class="flex items-center justify-between mb-3">
+          <span class="block text-[9px] uppercase tracking-wider text-slate-500">Security Sector</span>
+          <span class="flex h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+        </div>
+        <div class="flex items-center gap-3" v-if="userStore.currentUser">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 border border-white/[0.05] flex items-center justify-center font-bold text-white uppercase text-xs">
+            {{ userStore.currentUser.username?.slice(0, 2) || '??' }}
+          </div>
+          <div class="flex-1 truncate">
+            <span class="block text-white font-sans font-medium truncate">{{ userStore.currentUser.displayName || userStore.currentUser.username || 'User' }}</span>
+            <span class="block text-[9px] truncate text-slate-500 font-mono">Tenant-{{ userStore.currentUser.tenantId }}</span>
+          </div>
+        </div>
+        <button
+          @click="logout"
+          class="w-full mt-4 flex items-center justify-center space-x-2 py-2 border border-white/[0.06] hover:border-red-400 rounded-xl hover:text-red-400 transition-all cursor-pointer active:scale-95 text-[11px] bg-slate-950/40 font-semibold"
+        >
+          <span class="material-symbols-outlined text-[14px]">logout</span>
+          <span>Log Out</span>
+        </button>
       </div>
     </aside>
 
-    <!-- Main Content Area -->
-    <div class="ml-[260px] flex flex-col min-h-screen w-[calc(100%-260px)]">
-      <!-- Header -->
-      <header class="sticky top-0 z-40 flex justify-between items-center h-16 px-10 border-b border-slate-200 bg-white/70 backdrop-blur-xl">
-        <div class="flex flex-col">
-          <h1 class="text-xl font-bold text-slate-900 mb-0.5 tracking-tight">Knowledge Agent Console</h1>
-          <nav class="flex items-center gap-2 text-[11px] font-semibold">
-            <span class="text-blue-700 border-b-2 border-blue-700 pb-0.5">MVP Workspace</span>
-            <span class="text-slate-400">/</span>
-            <span class="text-slate-400">{{ currentRouteName }}</span>
-          </nav>
-        </div>
-
-        <div class="flex items-center gap-6">
-          <!-- MVP Tag -->
-          <div class="flex items-center gap-1.5 px-4 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[11px] font-bold tracking-widest">
-            <div class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-            <span>MVP</span>
-          </div>
-
-          <!-- User Profile -->
-          <div class="flex items-center gap-4 pl-6 border-l border-slate-200">
-            <div class="flex flex-col text-right" v-if="userStore.currentUser">
-              <span class="text-[13px] font-semibold text-slate-900">Tenant-{{ userStore.currentUser.tenantId }}</span>
-              <span class="text-[11px] text-slate-600">{{ userStore.currentUser.displayName || userStore.currentUser.username }}</span>
-            </div>
-            <div class="w-9 h-9 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-500">
-              <span class="material-symbols-outlined">person</span>
-            </div>
-          </div>
-
-          <!-- Logout -->
-          <button class="flex items-center gap-1 text-slate-600 bg-transparent border-none text-[13px] font-medium cursor-pointer transition-colors duration-200 p-0 hover:text-red-600 group" @click="logout">
-            <span class="material-symbols-outlined text-xl transition-transform duration-200 group-hover:translate-x-1">logout</span>
-            <span>Logout</span>
-          </button>
-        </div>
-      </header>
-
-      <!-- Main Workspace Canvas -->
-      <main class="grow p-6 md:p-8 bg-transparent">
+    <!-- Main Viewing Area panel -->
+    <main class="flex-1 p-6 md:p-8 overflow-y-auto max-h-screen relative z-10">
+      <div class="w-full max-w-7xl mx-auto h-full">
         <router-view />
-      </main>
-    </div>
+      </div>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useUserStore } from '@/stores/user'
@@ -153,22 +170,29 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const isBlankLayout = computed(() => route.meta.layout === 'blank')
-
-const currentRouteName = computed(() => {
-  const path = route.path
-  if (path.includes('knowledge-bases')) return 'Knowledge Bases'
-  if (path.includes('upload')) return 'Document Upload'
-  if (path.includes('documents')) return 'Document Management'
-  if (path.includes('chat')) return 'Q&A Chat'
-  if (path.includes('tasks')) return 'Task Monitor'
-  if (path.includes('eval')) return 'Eval Datasets'
-  if (path.includes('permissions')) return 'Permissions'
-  return 'Overview'
-})
+const isSidebarOpen = ref(false)
+const isLightMode = ref(false)
 
 onMounted(() => {
   userStore.loadFromStorage()
+  
+  const savedTheme = localStorage.getItem('theme')
+  if (savedTheme === 'light') {
+    isLightMode.value = true
+    document.documentElement.classList.add('light')
+  }
 })
+
+function toggleTheme() {
+  isLightMode.value = !isLightMode.value
+  if (isLightMode.value) {
+    document.documentElement.classList.add('light')
+    localStorage.setItem('theme', 'light')
+  } else {
+    document.documentElement.classList.remove('light')
+    localStorage.setItem('theme', 'dark')
+  }
+}
 
 function logout() {
   userStore.logout()

@@ -1,69 +1,87 @@
 <template>
-  <main class="stitch-upload-page">
+  <div class="font-sans flex flex-col h-[calc(100vh-140px)] min-h-[500px] text-white">
+    <!-- Outer Banner title -->
+    <div class="text-center pb-4 border-b border-white/[0.08] mb-6 shrink-0">
+      <h1 class="text-xs font-mono tracking-[0.25em] text-slate-400 uppercase m-0">
+        Data Matrix Injection
+      </h1>
+    </div>
+
     <!-- Page Header -->
-    <div class="page-header">
-      <div>
-        <h1 class="font-headline-lg">上传文档</h1>
-        <p class="subtitle">支持的格式: PDF, Word, PPT, Excel, Markdown, TXT</p>
+    <div class="cyber-panel rounded-2xl p-4 mb-6 border border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-lg font-bold text-white m-0 tracking-tight">Data Upload Protocol</h2>
+        <p class="text-[10px] font-mono text-slate-500 uppercase tracking-widest m-0 flex items-center gap-1">
+          <span class="material-symbols-outlined text-[12px]">info</span>
+          ACCEPTED FORMATS: PDF, DOC, PPT, XLS, MD, TXT
+        </p>
       </div>
-      <button class="outline-btn" @click="router.push('/documents')">
-        查看文档列表
+      <button @click="router.push('/documents')" class="py-2 px-4 rounded-lg bg-slate-900 border border-slate-700 hover:border-neon-cyan hover:text-neon-cyan text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer outline-none uppercase tracking-wider">
+        <span class="material-symbols-outlined text-[14px]">view_list</span>
+        View Databanks
       </button>
     </div>
 
     <!-- Error Alert -->
-    <el-alert
-      v-if="error"
-      :title="error"
-      type="error"
-      show-icon
-      :closable="false"
-      class="mb-6"
-    />
+    <div v-if="error" class="mb-5 p-3 rounded-lg bg-red-950/40 border border-red-500/30 text-red-400 text-xs font-mono flex items-center gap-2 shrink-0">
+      <span class="material-symbols-outlined text-[16px]">error</span>
+      {{ error }}
+    </div>
 
-    <div class="grid-layout">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0 overflow-y-auto scrollbar-thin pr-2">
       <!-- Central Upload Card -->
-      <div class="main-column">
-        <div class="glass-card">
-          <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="upload-form">
+      <div class="lg:col-span-2">
+        <div class="cyber-panel rounded-2xl p-6 border border-white/[0.06] relative overflow-hidden h-full">
+          <div class="absolute right-[-20px] top-[-20px] text-slate-800 opacity-20 text-[120px] font-black material-symbols-outlined pointer-events-none">cloud_upload</div>
+          
+          <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="cyber-form relative z-10 flex flex-col h-full">
             <!-- Knowledge Base & Title -->
-            <div class="form-row-2">
-              <el-form-item label="知识库" prop="spaceId">
-                <el-select v-model="form.spaceId" class="stitch-select full-width" placeholder="选择知识库">
-                  <el-option
-                    v-for="space in knowledgeStore.spaces"
-                    :key="space.id"
-                    :label="space.name"
-                    :value="space.id"
-                  />
-                </el-select>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <el-form-item label="Target Nexus" prop="spaceId" class="cyber-form-item">
+                <div class="relative w-full">
+                   <select
+                     v-model="form.spaceId"
+                     class="w-full bg-slate-950 px-3 py-2.5 rounded border border-white/[0.1] text-xs font-mono text-neon-cyan focus:border-neon-cyan focus:outline-none pr-8 appearance-none cursor-pointer uppercase tracking-wider"
+                   >
+                     <option v-for="space in knowledgeStore.spaces" :key="space.id" :value="space.id">
+                       {{ space.name }}
+                     </option>
+                   </select>
+                   <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[16px] text-neon-cyan pointer-events-none">expand_more</span>
+                </div>
               </el-form-item>
-              <el-form-item label="文档标题">
-                <el-input v-model="form.title" class="stitch-input" placeholder="为空时使用文件名" />
+              <el-form-item label="Packet Alias (Optional)" class="cyber-form-item">
+                <input v-model="form.title" type="text" class="w-full bg-slate-950 px-3 py-2.5 rounded border border-white/[0.1] text-xs font-mono text-white focus:border-neon-cyan focus:outline-none transition-colors placeholder-slate-600" placeholder="Defaults to filename" />
               </el-form-item>
             </div>
 
             <!-- Industry, Service Line, Confidentiality -->
-            <div class="form-row-3">
-              <el-form-item label="行业">
-                <el-input v-model="form.industry" class="stitch-input" placeholder="例如：金融" />
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <el-form-item label="Sector" class="cyber-form-item">
+                <input v-model="form.industry" type="text" class="w-full bg-slate-950 px-3 py-2.5 rounded border border-white/[0.1] text-xs font-mono text-white focus:border-neon-cyan focus:outline-none transition-colors placeholder-slate-600" placeholder="E.g. Finance" />
               </el-form-item>
-              <el-form-item label="服务线">
-                <el-input v-model="form.serviceLine" class="stitch-input" placeholder="例如：数据治理" />
+              <el-form-item label="Vector" class="cyber-form-item">
+                <input v-model="form.serviceLine" type="text" class="w-full bg-slate-950 px-3 py-2.5 rounded border border-white/[0.1] text-xs font-mono text-white focus:border-neon-cyan focus:outline-none transition-colors placeholder-slate-600" placeholder="E.g. Engineering" />
               </el-form-item>
-              <el-form-item label="密级">
-                <el-select v-model="form.confidentialLevel" class="stitch-select full-width">
-                  <el-option label="内部" value="INTERNAL" />
-                  <el-option label="机密" value="CONFIDENTIAL" />
-                  <el-option label="公开" value="PUBLIC" />
-                </el-select>
+              <el-form-item label="Security Clearance" class="cyber-form-item">
+                <div class="relative w-full">
+                   <select
+                     v-model="form.confidentialLevel"
+                     class="w-full bg-slate-950 px-3 py-2.5 rounded border border-white/[0.1] text-xs font-mono text-neon-cyan focus:border-neon-cyan focus:outline-none pr-8 appearance-none cursor-pointer uppercase tracking-wider"
+                   >
+                     <option value="INTERNAL">Internal</option>
+                     <option value="CONFIDENTIAL">Confidential</option>
+                     <option value="PUBLIC">Public</option>
+                   </select>
+                   <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[16px] text-neon-cyan pointer-events-none">expand_more</span>
+                </div>
               </el-form-item>
             </div>
 
             <!-- Dropzone Area -->
-            <el-form-item label="文件上传" prop="file">
+            <el-form-item label="Payload Injection" prop="file" class="cyber-form-item flex-1 flex flex-col">
               <el-upload
-                class="stitch-dropzone full-width"
+                class="cyber-dropzone flex-1"
                 drag
                 action="#"
                 :auto-upload="false"
@@ -72,20 +90,25 @@
                 :on-remove="handleFileRemove"
                 :accept="acceptedTypes"
               >
-                <div class="dropzone-content group">
-                  <span class="material-symbols-outlined upload-icon">cloud_upload</span>
-                  <h3>拖拽文件到此处或点击选择</h3>
-                  <p>文件内容不会入库，仅保存 source_uri</p>
+                <div class="flex flex-col items-center justify-center h-full gap-3 p-8">
+                  <span class="material-symbols-outlined text-[64px] text-neon-cyan/50 group-hover:text-neon-cyan transition-colors duration-300">data_object</span>
+                  <h3 class="text-sm font-mono uppercase tracking-widest text-slate-200 m-0">Drag Payload Here or Click</h3>
+                  <p class="text-[10px] font-mono text-slate-500 m-0 text-center max-w-[80%] leading-relaxed">
+                    Data will be processed into vector chunks. The original file content is not permanently retained; only source references are kept.
+                  </p>
                 </div>
               </el-upload>
             </el-form-item>
 
             <!-- Footer Actions -->
-            <div class="footer-actions">
-              <button class="reset-btn" type="button" @click="reset">重置</button>
-              <button class="submit-btn" type="button" :disabled="submitting" @click="submit">
-                <span v-if="submitting" class="material-symbols-outlined spin-icon">sync</span>
-                上传并解析
+            <div class="flex justify-end items-center gap-4 mt-6 pt-6 border-t border-white/[0.05]">
+              <button class="px-4 py-2 bg-transparent text-slate-400 border border-slate-700 hover:text-white hover:border-slate-500 rounded text-xs font-mono uppercase tracking-wider transition-colors outline-none cursor-pointer" type="button" @click="reset">
+                Reset
+              </button>
+              <button class="px-6 py-2 bg-neon-cyan text-slate-900 border border-neon-cyan hover:bg-cyan-400 hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] rounded text-xs font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-2 outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" type="button" :disabled="submitting" @click="submit">
+                <span v-if="submitting" class="material-symbols-outlined text-[14px] animate-spin">sync</span>
+                <span v-else class="material-symbols-outlined text-[14px]">rocket_launch</span>
+                Inject & Parse
               </button>
             </div>
           </el-form>
@@ -93,70 +116,63 @@
       </div>
 
       <!-- Right Column: Info & Success State -->
-      <div class="side-column">
+      <div class="flex flex-col gap-6">
         <!-- Info Card -->
-        <div class="info-card glass-card">
-          <h4>上传指南</h4>
-          <ul class="guidelines">
-            <li>
-              <span class="material-symbols-outlined text-primary">check_circle</span>
-              <p>请确保文档未加密，以便自动提取元数据。</p>
+        <div class="cyber-panel rounded-2xl p-5 border border-white/[0.06]">
+          <h4 class="text-xs font-mono font-bold uppercase tracking-widest text-white m-0 mb-4 flex items-center gap-2 pb-3 border-b border-white/[0.05]">
+            <span class="material-symbols-outlined text-neon-cyan text-[16px]">menu_book</span>
+            Injection Guidelines
+          </h4>
+          <ul class="flex flex-col gap-3 m-0 p-0 list-none">
+            <li class="flex items-start gap-2">
+              <span class="material-symbols-outlined text-neon-cyan text-[14px] mt-0.5">check_circle</span>
+              <p class="text-[11px] font-mono text-slate-400 m-0 leading-relaxed">Ensure documents are unencrypted to allow automated metadata extraction.</p>
             </li>
-            <li>
-              <span class="material-symbols-outlined text-primary">check_circle</span>
-              <p>单个文件最大支持 120MB。</p>
+            <li class="flex items-start gap-2">
+              <span class="material-symbols-outlined text-neon-cyan text-[14px] mt-0.5">check_circle</span>
+              <p class="text-[11px] font-mono text-slate-400 m-0 leading-relaxed">Maximum payload size is limited to 120MB per packet.</p>
             </li>
-            <li>
-              <span class="material-symbols-outlined text-primary">check_circle</span>
-              <p>上传图片或 PDF 会自动触发 OCR 解析。</p>
+            <li class="flex items-start gap-2">
+              <span class="material-symbols-outlined text-neon-cyan text-[14px] mt-0.5">check_circle</span>
+              <p class="text-[11px] font-mono text-slate-400 m-0 leading-relaxed">Image or PDF uploads will automatically trigger the OCR matrix.</p>
             </li>
           </ul>
         </div>
 
         <!-- Success State Card -->
         <transition name="fade-slide">
-          <div v-if="result" class="success-card">
-            <div class="success-header">
-              <div class="success-title">
-                <div class="icon-circle">
-                  <span class="material-symbols-outlined">check</span>
-                </div>
-                <span>上传完成</span>
-              </div>
-            </div>
-            <div class="success-body">
-              <div class="tags-row">
-                <span v-if="result.duplicated" class="tag tag-warning">重复文件</span>
-                <span class="tag tag-normal">文档 ID: {{ result.documentId }}</span>
-                <span class="tag tag-status">
-                  <span class="pulse-dot"></span>
-                  状态: {{ result.parseStatus }}
-                </span>
-              </div>
-              <p class="success-desc">文档已加入解析队列，请稍后查看详情。</p>
-              <button class="outline-primary-btn" @click="router.push('/tasks')">
-                查看解析状态
-              </button>
-            </div>
+          <div v-if="result" class="cyber-panel rounded-2xl border border-green-500/30 overflow-hidden relative group">
+             <div class="absolute inset-0 bg-green-500/5 group-hover:bg-green-500/10 transition-colors pointer-events-none"></div>
+             <div class="p-4 border-b border-green-500/20 bg-green-950/30 flex items-center gap-3">
+               <div class="w-8 h-8 rounded-full bg-green-500/20 border border-green-500/50 flex items-center justify-center text-green-400">
+                 <span class="material-symbols-outlined text-[18px]">done_all</span>
+               </div>
+               <span class="text-xs font-mono font-bold text-green-400 uppercase tracking-widest">Injection Complete</span>
+             </div>
+             <div class="p-5">
+               <div class="flex flex-wrap gap-2 mb-4">
+                 <span v-if="result.duplicated" class="px-2 py-0.5 rounded bg-orange-950/50 text-orange-400 border border-orange-500/50 text-[9px] font-mono uppercase font-bold tracking-wider">Duplicate Signature</span>
+                 <span class="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-white/[0.1] text-[9px] font-mono uppercase font-bold tracking-wider">ID: {{ result.documentId }}</span>
+                 <span class="px-2 py-0.5 rounded bg-blue-950/50 text-blue-400 border border-blue-500/50 text-[9px] font-mono uppercase font-bold tracking-wider flex items-center gap-1.5">
+                   <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                   Phase: {{ result.parseStatus }}
+                 </span>
+               </div>
+               <p class="text-[11px] font-mono text-slate-400 leading-relaxed m-0 mb-4">
+                 Payload has entered the processing queue. Telemetry will be available shortly.
+               </p>
+               <button class="w-full py-2.5 rounded border border-green-500/50 text-green-400 hover:bg-green-500 hover:text-slate-900 text-xs font-mono font-bold uppercase tracking-wider transition-colors outline-none cursor-pointer" @click="router.push('/tasks')">
+                 Monitor Tasks
+               </button>
+             </div>
           </div>
         </transition>
-
-        <!-- Visual Asset -->
-        <div class="visual-asset" v-if="!result">
-          <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPS6l2cZlintbcgtTbZKyb8Qaal3pZJLg7FkRaSusgnGdZxgNfl4yjyo8MFd8yEgAY-jNKq0bj11e_Ax7fLiWJDecHZQwxsBuk4ETCi5d3Jg_Pxd-Pgl4HhmtlfDSBWxwoHsFTptsoddjPodpPmoo5WFO3XX5CXl7o7gRIINk7B6hm9db3h01QT3USG8JA6vrkYW26IFY30B1tcXZe8VO-J5oSChKPbdSnXrH-vMpfdixSMzvmICTJlHm8h-h2RPgMS4BU6ZMN6mk" alt="Decoration" />
-          <div class="visual-overlay"></div>
-          <div class="visual-text">
-            <p class="visual-tag">功能亮点</p>
-            <p class="visual-title">AI 驱动的元数据提取</p>
-          </div>
-        </div>
       </div>
     </div>
-  </main>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { Files, UploadFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'
@@ -192,8 +208,8 @@ const form = reactive({
 })
 
 const rules: FormRules = {
-  spaceId: [{ required: true, message: '请选择知识库', trigger: 'change' }],
-  file: [{ required: true, message: '请选择文件', trigger: 'change' }],
+  spaceId: [{ required: true, message: 'Select a target nexus', trigger: 'change' }],
+  file: [{ required: true, message: 'Provide a payload', trigger: 'change' }],
 }
 
 onMounted(async () => {
@@ -230,8 +246,9 @@ async function submit() {
       serviceLine: form.serviceLine,
       confidentialLevel: form.confidentialLevel,
     })
-    ElMessage.success('文档已入库')
-    router.push('/tasks')
+    ElMessage.success('Payload injected successfully')
+    // We intentionally don't redirect so user sees the success state card
+    // router.push('/tasks')
   } catch (err) {
     error.value = apiErrorMessage(err)
   } finally {
@@ -251,337 +268,8 @@ function reset() {
 }
 </script>
 
-<style scoped>
-/* Styling to match Stitch */
-* {
-  box-sizing: border-box;
-}
-.stitch-upload-page {
-  /* max-width: 1280px; */
-  margin: 0 auto;
-  /* padding: 24px; */
-  /* background-color: #faf8ff; */
-  color: #131b2e;
-  font-family: 'Inter', sans-serif;
-  min-height: calc(100vh - 74px);
-}
-.text-primary { color: #004ac6; }
-.full-width { width: 100%; }
-.mb-6 { margin-bottom: 24px; }
-
-/* Header */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-.font-headline-lg {
-  font-size: 24px;
-  line-height: 32px;
-  font-weight: 600;
-  margin: 0 0 4px 0;
-}
-.subtitle {
-  font-size: 14px;
-  color: #505f76;
-  margin: 0;
-}
-.outline-btn {
-  padding: 8px 16px;
-  border: 1px solid #737686;
-  border-radius: 8px;
-  background: transparent;
-  color: #004ac6;
-  font-weight: 500;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.outline-btn:hover {
-  background-color: #f2f3ff;
-}
-
-/* Layout */
-.grid-layout {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 32px;
-}
-@media (max-width: 1024px) {
-  .grid-layout { grid-template-columns: 1fr; }
-}
-
-/* Glass Card */
-.glass-card {
-  background-color: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid #c3c6d7;
-  border-radius: 16px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
-  padding: 32px;
-}
-
-/* Forms */
-.form-row-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-}
-.form-row-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-}
-@media (max-width: 768px) {
-  .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
-}
-
-:deep(.el-form-item__label) {
-  font-size: 12px;
-  font-weight: 500;
-  color: #434655;
-  padding-bottom: 8px;
-}
-
-:deep(.stitch-select .el-select__wrapper),
-:deep(.stitch-input .el-input__wrapper) {
-  background-color: #ffffff;
-  border: 1px solid #c3c6d7;
-  border-radius: 8px;
-  box-shadow: none !important;
-  min-height: 44px;
-  padding: 8px 16px;
-}
-:deep(.stitch-select .el-select__wrapper.is-focused),
-:deep(.stitch-input .el-input__wrapper.is-focus) {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
-}
-
-/* Dropzone */
-:deep(.stitch-dropzone .el-upload-dragger) {
-  background-color: transparent;
-  border: 2px dashed #c3c6d7;
-  border-radius: 16px;
-  padding: 48px;
-  transition: all 0.3s;
-}
-:deep(.stitch-dropzone .el-upload-dragger:hover),
-:deep(.stitch-dropzone .el-upload-dragger.is-dragover) {
-  border-color: rgba(0, 74, 198, 0.5);
-  background-color: rgba(0, 74, 198, 0.05);
-}
-.dropzone-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-.upload-icon {
-  font-size: 64px;
-  color: rgba(0, 74, 198, 0.4);
-  transition: transform 0.3s, color 0.3s;
-}
-:deep(.el-upload-dragger:hover) .upload-icon {
-  color: #004ac6;
-  transform: scale(1.1);
-}
-.dropzone-content h3 {
-  font-size: 18px;
-  font-weight: 500;
-  color: #131b2e;
-  margin: 0;
-}
-.dropzone-content p {
-  font-size: 14px;
-  color: #505f76;
-  margin: 0;
-}
-
-/* Footer Actions */
-.footer-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 24px;
-  margin-top: 24px;
-}
-.reset-btn {
-  background: transparent;
-  border: none;
-  font-size: 14px;
-  font-weight: 500;
-  color: #505f76;
-  cursor: pointer;
-  padding: 8px 16px;
-}
-.reset-btn:hover {
-  color: #131b2e;
-}
-.submit-btn {
-  background-color: #004ac6;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 32px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-.submit-btn:hover:not(:disabled) {
-  background-color: #2563eb;
-}
-.submit-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-.submit-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.spin-icon {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  100% { transform: rotate(360deg); }
-}
-
-/* Info Card */
-.side-column {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-.info-card h4 {
-  font-size: 14px;
-  font-weight: 700;
-  margin: 0 0 16px 0;
-}
-.guidelines {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.guidelines li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.guidelines p {
-  font-size: 14px;
-  color: #434655;
-  margin: 0;
-  line-height: 1.5;
-}
-
-/* Success Card */
-.success-card {
-  background-color: #ffffff;
-  border-radius: 16px;
-  border: 1px solid rgba(0, 74, 198, 0.2);
-  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-  overflow: hidden;
-}
-.success-header {
-  background-color: rgba(0, 74, 198, 0.1);
-  padding: 16px 24px;
-  border-bottom: 1px solid rgba(0, 74, 198, 0.1);
-}
-.success-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #004ac6;
-  font-weight: 600;
-  font-size: 14px;
-}
-.icon-circle {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: #004ac6;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.icon-circle span {
-  font-size: 18px;
-}
-.success-body {
-  padding: 24px;
-}
-.tags-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-.tag {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.tag-warning {
-  background-color: #ffdad6;
-  color: #93000a;
-}
-.tag-normal {
-  background-color: #e2e7ff;
-  color: #434655;
-}
-.tag-status {
-  background-color: #d0e1fb;
-  color: #54647a;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.pulse-dot {
-  width: 6px;
-  height: 6px;
-  background-color: #b7c8e1;
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.4; }
-  100% { opacity: 1; }
-}
-.success-desc {
-  font-size: 14px;
-  color: #505f76;
-  margin: 0 0 16px 0;
-  line-height: 1.5;
-}
-.outline-primary-btn {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #004ac6;
-  border-radius: 8px;
-  background: transparent;
-  color: #004ac6;
-  font-weight: 500;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-.outline-primary-btn:hover {
-  background-color: rgba(0, 74, 198, 0.05);
-}
-
+<style>
+/* Transitions */
 .fade-slide-enter-active, .fade-slide-leave-active {
   transition: all 0.5s ease;
 }
@@ -590,44 +278,72 @@ function reset() {
   transform: translateY(16px);
 }
 
-/* Visual Asset */
-.visual-asset {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  aspect-ratio: 4/3;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+/* Scrollbar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
 }
-.visual-asset img {
-  width: 100%;
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 240, 255, 0.3);
+}
+
+/* Cyber Form Element Plus Overrides */
+.cyber-form-item .el-form-item__label {
+  font-size: 10px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  color: #94a3b8 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  padding-bottom: 4px !important;
+  line-height: 1 !important;
+}
+
+/* Cyber Dropzone */
+.cyber-dropzone {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  object-fit: cover;
-  transition: transform 0.7s;
 }
-.visual-asset:hover img {
-  transform: scale(1.05);
+.cyber-dropzone .el-upload {
+  height: 100%;
 }
-.visual-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+.cyber-dropzone .el-upload-dragger {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-color: rgba(2, 6, 23, 0.5) !important;
+  border: 1px dashed rgba(255, 255, 255, 0.1) !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.3s ease !important;
 }
-.visual-text {
-  position: absolute;
-  bottom: 24px;
-  left: 24px;
-  color: white;
+.cyber-dropzone .el-upload-dragger:hover,
+.cyber-dropzone .el-upload-dragger.is-dragover {
+  border-color: rgba(0, 240, 255, 0.5) !important;
+  background-color: rgba(0, 240, 255, 0.05) !important;
 }
-.visual-tag {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  opacity: 0.8;
-  margin: 0 0 4px 0;
+.cyber-dropzone .el-upload-list {
+  margin-top: 1rem;
 }
-.visual-title {
-  font-size: 18px;
-  font-weight: 500;
-  margin: 0;
+.cyber-dropzone .el-upload-list__item {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+.cyber-dropzone .el-upload-list__item-name {
+  color: #00f0ff !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
+  font-size: 11px !important;
+}
+.cyber-dropzone .el-upload-list__item:hover {
+  background-color: rgba(15, 23, 42, 1) !important;
+  border-color: rgba(0, 240, 255, 0.3) !important;
 }
 </style>

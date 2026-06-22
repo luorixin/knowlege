@@ -1,234 +1,383 @@
 <template>
-  <div class="flex h-[calc(100vh-74px)] bg-slate-50 -mx-7 -my-6 overflow-hidden">
-    <!-- Left Column: History Sidebar -->
-    <aside v-show="showLeftSidebar" class="w-[220px] shrink-0 border-r border-slate-200/60 bg-slate-50 flex flex-col z-10 transition-all">
-      <div class="px-4 py-4 border-b border-slate-200/60 flex flex-col gap-3 shrink-0">
-        <button @click="newChat" class="flex items-center justify-center gap-2 w-full py-2 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors text-sm font-medium text-slate-700 shadow-sm">
-          <span class="material-symbols-outlined text-[18px]">add_comment</span>
-          新建对话
-        </button>
-      </div>
-      <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
-        <div 
-          v-for="session in chatStore.sessions" 
-          :key="session.id"
-          @click="loadHistory(session.id)"
-          class="px-3 py-2.5 rounded-lg cursor-pointer text-sm transition-colors flex flex-col gap-1"
-          :class="chatStore.sessionId === session.id ? 'bg-blue-100 text-blue-900 font-semibold' : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 font-medium'"
+  <div class="font-sans flex flex-col h-[calc(100vh-140px)] min-h-[500px] text-white">
+    
+    <!-- Outer Banner title -->
+    <div class="text-center pb-4 border-b border-white/[0.08] mb-4 shrink-0">
+      <h1 class="text-xs font-mono tracking-[0.25em] text-slate-400 uppercase m-0">
+        Advanced AI Command Chat
+      </h1>
+    </div>
+
+    <!-- Primary Layout splits 3 panels: conversations sidebar, active Chat area, Evidence tracing (Image 3) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 overflow-hidden relative">
+      
+      <!-- Left Panel: Conversations List (Cols 3) -->
+      <div v-show="showLeftSidebar" class="lg:col-span-3 cyber-panel rounded-2xl p-4 flex flex-col overflow-hidden h-full z-10 transition-all">
+        <button
+          @click="newChat"
+          class="w-full py-2.5 px-4 rounded-xl border border-dashed border-cyan-400/30 hover:border-neon-cyan/80 hover:bg-cyan-950/20 text-neon-cyan hover:text-white text-xs font-mono tracking-wider transition-all flex items-center justify-center gap-2 mb-4 active:scale-95 cursor-pointer"
         >
-          <div class="truncate">{{ session.title || '新会话' }}</div>
-          <div class="text-[10px] opacity-60 font-normal">{{ formatDate(session.createdAt) }}</div>
+          <span class="material-symbols-outlined text-[16px]">add</span>
+          <span>New Chat</span>
+        </button>
+
+        <!-- Chat Search -->
+        <div class="relative mb-4">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-slate-500">search</span>
+          <input
+            type="text"
+            placeholder="Search conversations..."
+            v-model="chatSearch"
+            class="w-full text-xs text-white pl-9 pr-3 py-2 rounded-lg border border-white/[0.06] bg-slate-950/80 focus:border-neon-cyan focus:outline-none placeholder:text-slate-500"
+          />
+        </div>
+
+        <!-- Conversation list with category groups -->
+        <div class="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin">
+          <div class="space-y-1">
+            <span class="block text-[9px] font-mono uppercase tracking-widest text-slate-500 px-2 mb-2">History</span>
+            
+            <button
+              v-for="session in filteredSessions"
+              :key="session.id"
+              @click="loadHistory(session.id)"
+              :class="[
+                'w-full text-left p-3 rounded-xl transition-all border flex flex-col justify-between cursor-pointer',
+                chatStore.sessionId === session.id
+                  ? 'bg-cyan-950/30 border-neon-cyan/40 shadow-[0_0_12px_rgba(0,240,255,0.06)]'
+                  : 'bg-transparent border-transparent hover:bg-white/[0.02]'
+              ]"
+            >
+              <div class="flex items-center justify-between mb-1">
+                <span :class="['text-xs font-medium truncate tracking-wide', chatStore.sessionId === session.id ? 'text-white font-semibold' : 'text-slate-300']">
+                  {{ session.title || 'New Session' }}
+                </span>
+                <div v-if="chatStore.sessionId === session.id" class="w-1.5 h-1.5 rounded-full bg-neon-cyan shadow-[0_0_6px_#00f0ff]"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1 text-[10px] font-mono text-slate-500">
+                <span>{{ formatDate(session.createdAt) }}</span>
+                <span class="text-[9px] opacity-70">
+                  {{ selectedSpace?.name || 'Default Space' }}
+                </span>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
-    </aside>
 
-    <!-- Main Chat Area -->
-    <main class="flex-1 flex flex-col relative min-w-0">
-      <!-- Top Control Bar (replaces the left sidebar) -->
-      <header class="flex items-center gap-4 px-8 py-4 bg-white/80 backdrop-blur-md border-b border-slate-200/60 z-10 shrink-0">
-        <button @click="showLeftSidebar = !showLeftSidebar" class="shrink-0 p-1 -ml-4 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors outline-none" title="切换历史会话侧边栏">
-          <span class="material-symbols-outlined text-[20px]">menu</span>
-        </button>
-        <div class="flex items-center gap-2 font-semibold text-slate-800 shrink-0">
-          <span class="material-symbols-outlined text-blue-800">filter_list</span>
-          <span>知识库配置</span>
-        </div>
-        <el-select v-model="spaceId" class="w-48" placeholder="选择知识库" @change="selectSpace">
-          <el-option v-for="space in knowledgeStore.spaces" :key="space.id" :label="space.name" :value="space.id" />
-        </el-select>
+      <!-- Center Panel: Active Chats & Inputs (Flexible cols based on viewport panel display) -->
+      <div :class="[centerColSpanClass, 'flex flex-col h-full overflow-hidden relative min-w-0']">
         
-        <el-popover placement="bottom-start" :width="320" trigger="click">
-          <template #reference>
-            <el-button class="ml-2" plain>
-              <span class="material-symbols-outlined mr-1" style="font-size: 18px;">tune</span>
-              高级过滤
-            </el-button>
-          </template>
-          <div class="flex flex-col gap-3">
-            <h4 class="m-0 text-sm font-semibold text-slate-700">文档属性过滤</h4>
-            <el-select v-model="filters.doc_type" size="small" clearable placeholder="文档类型">
-              <el-option label="Proposal" value="proposal" />
-              <el-option label="SOW" value="sow" />
-              <el-option label="制度文档" value="policy" />
-              <el-option label="行业研究" value="research" />
-            </el-select>
-            <el-input v-model="filters.industry" size="small" clearable placeholder="行业 (例如：金融)" />
-            <el-input v-model="filters.service_line" size="small" clearable placeholder="服务线 (例如：数据治理)" />
-            <el-input-number v-model="filters.year_from" size="small" class="w-full" :min="2000" :max="2100" placeholder="起始年份" />
-          </div>
-        </el-popover>
-
-        <div class="ml-auto flex items-center gap-3">
-          <button @click="chatStore.clear()" class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200">
-            <span class="material-symbols-outlined text-[18px]">delete_sweep</span>
-            清空对话
-          </button>
-          
-          <div class="w-px h-5 bg-slate-200"></div>
-
-          <button @click="showRightSidebar = !showRightSidebar" :class="showRightSidebar ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500 bg-white border-slate-200 hover:text-blue-600 hover:bg-slate-50'" class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border outline-none" title="切换证据溯源面板">
-            <span class="material-symbols-outlined text-[18px]">book_4</span>
-            溯源
-          </button>
-        </div>
-      </header>
-
-      <!-- Chat Feed -->
-      <div id="chat-container" class="flex-1 overflow-y-auto px-4 md:px-8 py-12 pb-48">
-        <div class="max-w-2xl 2xl:max-w-3xl mx-auto flex flex-col gap-12">
-          <el-empty v-if="chatStore.messages.length === 0" :image-size="120" description="暂无对话，请在下方输入问题" />
-
-          <article v-for="message in chatStore.messages" :key="message.id" class="group relative">
-            
-            <!-- User Query (Marginalia style heading) -->
-            <div v-if="message.role === 'user'" class="mb-6">
-              <h2 class="text-2xl font-bold text-slate-900 tracking-tight leading-snug m-0">
-                {{ message.content }}
-              </h2>
+        <!-- Header selectors of chat -->
+        <div class="cyber-panel rounded-2xl p-4 mb-3 border border-white/[0.06] flex flex-col shrink-0">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-mono text-slate-400">Knowledge Base:</span>
+              <div class="relative">
+                <select
+                  v-model="spaceId"
+                  @change="selectSpace($event.target.value)"
+                  class="bg-slate-950 px-3 py-1.5 rounded-lg border border-white/[0.08] text-xs font-mono text-neon-cyan focus:outline-none pr-8 appearance-none cursor-pointer"
+                >
+                  <option v-for="space in knowledgeStore.spaces" :key="space.id" :value="space.id">
+                    {{ space.name }}
+                  </option>
+                </select>
+                <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[14px] text-neon-cyan pointer-events-none">expand_more</span>
+              </div>
             </div>
 
-            <!-- AI Response (Editorial Serif Document style) -->
-            <div v-else-if="message.role === 'assistant'" class="flex gap-6">
-              <!-- Avatar gutter -->
-              <div class="shrink-0 w-8 flex flex-col items-center pt-1">
-                <div class="w-8 h-8 rounded bg-blue-900 flex items-center justify-center shadow-sm">
-                  <span class="material-symbols-outlined text-white text-[18px]">smart_toy</span>
-                </div>
-              </div>
+            <!-- Dynamic sidebar toggles and filters -->
+            <div class="flex items-center space-x-2 shrink-0">
+              <!-- Toggle Chat History -->
+              <button
+                type="button"
+                @click="showLeftSidebar = !showLeftSidebar"
+                :class="[
+                  'py-1.5 px-3 rounded-lg border text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer',
+                  showLeftSidebar ? 'border-neon-cyan bg-cyan-950/20 text-neon-cyan font-bold animate-pulse' : 'border-white/[0.08] hover:border-white/20 text-slate-400'
+                ]"
+                title="Toggle Chat History panel"
+              >
+                <span class="material-symbols-outlined text-[14px]">chat</span>
+                <span class="hidden sm:inline">History</span>
+              </button>
               
-              <!-- Content -->
-              <div class="flex-1 min-w-0">
+              <!-- Toggle Evidence Panel -->
+              <button
+                type="button"
+                @click="showRightSidebar = !showRightSidebar"
+                :class="[
+                  'py-1.5 px-3 rounded-lg border text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer',
+                  showRightSidebar ? 'border-neon-cyan bg-cyan-950/20 text-neon-cyan font-bold animate-pulse' : 'border-white/[0.08] hover:border-white/20 text-slate-400'
+                ]"
+                title="Toggle Evidence tracing panel"
+              >
+                <span class="material-symbols-outlined text-[14px]">description</span>
+                <span class="hidden sm:inline">Evidence</span>
+              </button>
+
+              <!-- Filter toggle -->
+              <button
+                type="button"
+                @click="showFilters = !showFilters"
+                :class="[
+                  'py-1.5 px-3 rounded-lg border text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer',
+                  showFilters ? 'border-neon-cyan bg-cyan-950/20 text-neon-cyan' : 'border-white/[0.08] hover:border-white/25 text-slate-300'
+                ]"
+                title="Toggle advanced document filters"
+              >
+                <span class="material-symbols-outlined text-[14px]">filter_list</span>
+                <span class="hidden sm:inline">Filters</span>
+                <span v-if="activeFiltersCount > 0" class="px-1.5 py-0.2 text-[9px] font-mono font-bold bg-neon-cyan text-slate-950 rounded-full">
+                  {{ activeFiltersCount }}
+                </span>
+              </button>
+              
+              <button @click="chatStore.clear()" class="py-1.5 px-3 rounded-lg border border-red-950/40 hover:border-red-500 hover:bg-red-950/20 text-xs font-mono text-red-500 transition-all flex items-center gap-1.5 cursor-pointer ml-1">
+                <span class="material-symbols-outlined text-[14px]">delete_sweep</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Inline expandable Filters drawer area -->
+          <div v-if="showFilters" class="border-t border-white/[0.08] mt-4 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left animate-fadeIn">
+            
+            <!-- Doc Type column -->
+            <div class="space-y-2">
+              <span class="block text-[9px] font-mono uppercase tracking-wider text-slate-500 font-bold">Doc Type</span>
+              <div class="space-y-1.5">
+                <select v-model="filters.doc_type" class="w-full text-xs text-white px-3 py-1.5 rounded border border-white/[0.08] bg-slate-950 focus:border-neon-cyan focus:outline-none font-mono">
+                  <option value="">All Types</option>
+                  <option value="proposal">Proposal</option>
+                  <option value="sow">SOW</option>
+                  <option value="policy">Policy</option>
+                  <option value="research">Research</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Industry column -->
+            <div class="space-y-2">
+              <span class="block text-[9px] font-mono uppercase tracking-wider text-slate-500 font-bold">Industry / Service</span>
+              <div class="space-y-1.5 flex flex-col gap-2">
+                <input v-model="filters.industry" placeholder="Industry (e.g. Finance)" class="w-full text-xs text-white px-3 py-1.5 rounded border border-white/[0.08] bg-slate-950 focus:border-neon-cyan focus:outline-none font-mono" />
+                <input v-model="filters.service_line" placeholder="Service Line" class="w-full text-xs text-white px-3 py-1.5 rounded border border-white/[0.08] bg-slate-950 focus:border-neon-cyan focus:outline-none font-mono" />
+              </div>
+            </div>
+
+            <!-- Year column -->
+            <div class="space-y-2">
+              <span class="block text-[9px] font-mono uppercase tracking-wider text-slate-500 font-bold">Year From</span>
+              <div class="space-y-1.5">
+                <input type="number" v-model="filters.year_from" min="2000" max="2100" placeholder="e.g. 2023" class="w-full text-xs text-white px-3 py-1.5 rounded border border-white/[0.08] bg-slate-950 focus:border-neon-cyan focus:outline-none font-mono" />
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Message log content list -->
+        <div id="chat-container" class="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin mb-3">
+          <div v-if="chatStore.messages.length === 0" class="h-full flex flex-col items-center justify-center text-center p-8">
+            <span class="material-symbols-outlined text-[40px] text-slate-600 mb-2 animate-bounce">chat</span>
+            <p class="text-slate-400 text-sm">Send a request payload to begin vector parsing.</p>
+            <p class="text-[10px] text-slate-500 font-mono mt-1">E.G. "What is the efficiency curve?"</p>
+          </div>
+
+          <template v-else>
+            <div v-for="message in chatStore.messages" :key="message.id" :class="['flex flex-col relative', message.role === 'user' ? 'items-end' : 'items-start']">
+              
+              <!-- Standard messages -->
+              <div
+                :class="[
+                  'rounded-xl p-4 text-xs leading-relaxed max-w-[90%] border shadow-md',
+                  message.role === 'user'
+                    ? 'bg-cyan-950/20 border-cyan-500/20 text-slate-100 font-sans'
+                    : 'cyber-panel hover:bg-slate-900/60 transition-all border-white/[0.06]'
+                ]"
+              >
+                <span class="block text-[10px] font-mono tracking-wider uppercase text-slate-500 mb-2">
+                  {{ message.role === 'user' ? 'User:' : 'AI:' }}
+                </span>
+
                 <div 
-                  class="markdown-body"
-                  :class="{ 'text-red-700': message.error }"
+                  class="font-sans whitespace-pre-line text-slate-200 chat-markdown"
+                  :class="{ 'text-red-400': message.error }"
                   v-html="renderMarkdown(message.content)"
                   @click="handleCitationClick"
                 ></div>
 
-                <div v-if="message.content.includes(noEvidenceText)" class="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-50 text-amber-700 text-sm font-medium border border-amber-200/60">
-                  <span class="material-symbols-outlined text-[16px]">warning</span>
-                  未在当前知识库中找到可靠依据
+                <div v-if="message.content.includes(noEvidenceText)" class="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-950/40 text-amber-400 text-xs font-mono border border-amber-500/30">
+                  <span class="material-symbols-outlined text-[14px]">warning</span>
+                  No reliable evidence found in current space
                 </div>
 
-                <div class="mt-4 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity" v-if="userStore.isAdmin && message.debugInfo">
-                  <button @click="openDebug(message.debugInfo)" class="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 px-2.5 py-1 rounded transition-colors border border-slate-200/60">
-                    <span class="material-symbols-outlined text-[14px]">bug_report</span>
-                    检索调试
+                <div class="mt-4 flex items-center gap-3 opacity-0 hover:opacity-100 transition-opacity" v-if="userStore.isAdmin && message.debugInfo">
+                  <button @click="openDebug(message.debugInfo)" class="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 hover:text-neon-cyan border border-white/[0.06] hover:border-cyan-500/30 bg-slate-950/50 px-2 py-1 rounded transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[12px]">bug_report</span>
+                    Debug Trace
                   </button>
                 </div>
               </div>
             </div>
-          </article>
 
-          <!-- Loading State -->
-          <article v-if="chatStore.sending" class="flex gap-6">
-            <div class="shrink-0 w-8 flex flex-col items-center pt-1">
-              <div class="w-8 h-8 rounded bg-blue-900 flex items-center justify-center shadow-sm opacity-50 animate-pulse">
-                <span class="material-symbols-outlined text-white text-[18px]">smart_toy</span>
-              </div>
+            <!-- Loading State -->
+            <div v-if="chatStore.sending" class="flex flex-col items-start relative">
+               <div class="rounded-xl p-4 text-xs leading-relaxed max-w-[90%] border shadow-md cyber-panel border-white/[0.06] w-full max-w-md">
+                 <span class="block text-[10px] font-mono tracking-wider uppercase text-slate-500 mb-2">AI:</span>
+                 <div class="space-y-2">
+                   <div class="h-2 bg-slate-700/50 rounded w-3/4 animate-pulse"></div>
+                   <div class="h-2 bg-slate-700/50 rounded w-full animate-pulse"></div>
+                   <div class="h-2 bg-slate-700/50 rounded w-5/6 animate-pulse"></div>
+                 </div>
+               </div>
             </div>
-            <div class="flex-1 pt-1">
-              <div class="h-4 bg-slate-200 rounded w-3/4 animate-pulse mb-4"></div>
-              <div class="h-4 bg-slate-200 rounded w-full animate-pulse mb-4"></div>
-              <div class="h-4 bg-slate-200 rounded w-5/6 animate-pulse"></div>
-            </div>
-          </article>
+          </template>
         </div>
-      </div>
 
-      <!-- Input Area -->
-      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-2xl 2xl:max-w-3xl px-6 transition-all">
-        <div class="bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-2xl p-2 flex items-end gap-2 transition-shadow focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.12)] focus-within:border-blue-300">
-          <button class="shrink-0 p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors mb-0.5 outline-none">
-            <span class="material-symbols-outlined">attach_file</span>
-          </button>
-          <el-input
-            v-model="question"
-            type="textarea"
-            :autosize="{ minRows: 1, maxRows: 6 }"
-            resize="none"
-            placeholder="提出问题，AI 将为您检索知识库并进行分析..."
-            class="stitch-chat-input flex-1"
-            @keydown.meta.enter.prevent="send"
-            @keydown.ctrl.enter.prevent="send"
-          />
-          <button 
-            v-if="!chatStore.sending"
-            class="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-blue-800 text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:pointer-events-none mb-0.5 outline-none"
-            :disabled="!spaceId || !question.trim()" 
-            @click="send"
+        <!-- Message input bar with paperclip and send action - matching Image 3 bottom -->
+        <div class="cyber-panel rounded-2xl p-2 relative flex items-center gap-2 border border-white/[0.08] shrink-0">
+          <button
+            type="button"
+            class="p-2 border border-white/[0.05] hover:border-neon-cyan/30 bg-slate-950/80 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer outline-none"
+            title="Add context attachment"
           >
-            <span class="material-symbols-outlined">send</span>
+            <span class="material-symbols-outlined text-[16px]">attach_file</span>
+          </button>
+          
+          <input
+            v-model="question"
+            type="text"
+            placeholder="Ask anything about enterprise knowledge..."
+            class="flex-1 bg-transparent px-3 text-xs text-white placeholder:text-slate-600 focus:outline-none font-sans"
+            @keydown.enter.prevent="send"
+          />
+
+          <button
+            v-if="!chatStore.sending"
+            @click="send"
+            :disabled="!spaceId || !question.trim()" 
+            class="p-2 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-400 text-slate-950 hover:from-neon-cyan hover:to-cyan-300 transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(0,240,255,0.35)] disabled:opacity-50 disabled:cursor-not-allowed outline-none"
+          >
+            <span class="material-symbols-outlined text-[16px]">send</span>
           </button>
           <button 
             v-else
-            class="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-slate-800 text-white shadow-md transition-all hover:bg-slate-700 hover:shadow-lg active:scale-95 mb-0.5 outline-none"
             @click="chatStore.stopGeneration()"
-            title="停止生成"
+            class="p-2 px-3 rounded-xl bg-slate-800 border border-slate-600 text-white hover:bg-slate-700 transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-md outline-none"
+            title="Stop generation"
           >
-            <span class="material-symbols-outlined">stop_circle</span>
+            <span class="material-symbols-outlined text-[16px]">stop_circle</span>
           </button>
         </div>
-        <p class="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-4">
-          AI generated content may be inaccurate
-        </p>
       </div>
-    </main>
 
-    <!-- Right Column: Citations Sidebar -->
-    <aside v-show="showRightSidebar" class="w-[300px] shrink-0 border-l border-slate-200/60 bg-slate-50 flex flex-col shadow-[-4px_0_15px_rgba(0,0,0,0.02)] z-10 transition-all">
-      <div class="px-6 py-5 border-b border-slate-200/60 flex items-center justify-between bg-white/50 backdrop-blur-sm shrink-0">
-        <div class="flex items-center gap-2 text-slate-800 font-semibold">
-          <span class="material-symbols-outlined text-amber-600">book_4</span>
-          <span>证据溯源</span>
+      <!-- Right Panel: Evidence Tracing (Cols 3) - matches design of Image 3 -->
+      <div v-show="showRightSidebar" class="lg:col-span-3 cyber-panel rounded-2xl p-4 flex flex-col overflow-hidden h-full z-10 transition-all">
+        <div class="flex items-center justify-between pb-3 border-b border-white/[0.08] mb-4 shrink-0">
+          <h3 class="text-xs font-mono uppercase tracking-widest text-slate-400 m-0">
+            Evidence Tracing
+          </h3>
+          <span v-if="chatStore.activeCitations?.length" class="text-[9px] font-mono text-neon-cyan uppercase px-1.5 py-0.5 rounded bg-cyan-950/30 border border-cyan-900/50">
+            {{ chatStore.activeCitations.length }} Sources
+          </span>
+          <span v-else class="text-[9px] font-mono text-slate-600 uppercase">Interactive Log</span>
         </div>
-        <span v-if="chatStore.activeCitations?.length" class="px-2.5 py-1 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-md shadow-sm">
-          {{ chatStore.activeCitations.length }} Sources
-        </span>
-      </div>
-      
-      <div class="flex-1 overflow-y-auto relative">
-        <CitationPanel 
-          v-if="chatStore.activeCitations?.length"
-          :citations="chatStore.activeCitations" 
-          :active-id="activeCitationId"
-          @preview="handlePreview"
-        />
-        <div v-else class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 opacity-60">
-          <span class="material-symbols-outlined text-[64px] mb-4 font-light">library_books</span>
-          <p class="font-medium tracking-wide">暂无引用数据</p>
+
+        <div class="flex-1 overflow-y-auto relative scrollbar-thin">
+          <div v-if="chatStore.activeCitations?.length" class="space-y-4 pr-1">
+            <div
+              v-for="source in chatStore.activeCitations"
+              :key="source.id"
+              :id="'citation-card-' + source.id"
+              :class="[
+                'group p-3.5 rounded-xl border transition-all relative',
+                activeCitationId === source.id
+                  ? 'border-neon-cyan bg-cyan-950/30 scale-[1.02] shadow-[0_0_20px_rgba(0,240,255,0.25)]'
+                  : 'border-white/[0.06] bg-slate-950/40 hover:border-white/15'
+              ]"
+            >
+              <div v-if="activeCitationId === source.id" class="absolute inset-0 bg-cyan-500/[0.02] animate-pulse rounded-xl pointer-events-none"></div>
+
+              <div class="flex items-start justify-between mb-1.5 gap-2">
+                <span class="flex items-center gap-1.5">
+                  <span class="font-mono font-bold text-[10px] bg-cyan-950 text-neon-cyan border border-neon-cyan/30 px-1.5 py-0.2 rounded shrink-0">
+                    [{{ source.id }}]
+                  </span>
+                  <span class="text-xs font-semibold text-slate-100 truncate tracking-wide" :title="source.doc_title">
+                    {{ source.doc_title || 'Unknown Document' }}
+                  </span>
+                </span>
+              </div>
+
+              <p class="text-slate-300 text-[10.5px] leading-relaxed mb-3 italic bg-slate-900/40 p-2 rounded-lg border border-white/[0.03] overflow-hidden line-clamp-4 group-hover:line-clamp-none transition-all duration-300">
+                &ldquo;{{ source.chunk_content }}&rdquo;
+              </p>
+
+              <button
+                @click="handlePreview(source)"
+                class="text-[9px] font-mono text-neon-cyan/80 group-hover:text-neon-cyan hover:underline transition-all flex items-center justify-end w-full gap-1 cursor-pointer select-none outline-none border-none bg-transparent"
+              >
+                <span>View Source</span>
+                <span class="material-symbols-outlined text-[12px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+              </button>
+            </div>
+          </div>
+          <div v-else class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 opacity-80">
+            <span class="material-symbols-outlined text-[40px] mb-4 font-light opacity-50">library_books</span>
+            <p class="font-mono text-xs tracking-wide">No active citations</p>
+          </div>
         </div>
       </div>
-    </aside>
+
+    </div>
 
     <!-- Debug Drawer -->
-    <el-drawer v-model="debugVisible" title="检索链路调试" size="600px">
+    <el-drawer v-model="debugVisible" title="检索链路调试" size="600px" class="cyber-drawer">
       <div v-if="currentDebugInfo">
         <el-collapse v-model="debugActiveNames" class="border-none">
           <el-collapse-item title="最终给到模型的 Context" name="1">
-            <pre class="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-700 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ currentDebugInfo.final_context || '无' }}</pre>
+            <pre class="bg-slate-950 p-4 rounded-lg border border-white/[0.1] font-mono text-xs text-slate-300 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ currentDebugInfo.final_context || '无' }}</pre>
           </el-collapse-item>
           <el-collapse-item title="向量召回与 Rerank 得分" name="2">
-            <pre class="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-700 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ JSON.stringify(currentDebugInfo.reranked_chunks, null, 2) }}</pre>
+            <pre class="bg-slate-950 p-4 rounded-lg border border-white/[0.1] font-mono text-xs text-slate-300 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ JSON.stringify(currentDebugInfo.reranked_chunks, null, 2) }}</pre>
           </el-collapse-item>
           <el-collapse-item title="关键词检索召回 (如果有)" name="3">
-            <pre class="bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs text-slate-700 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ JSON.stringify(currentDebugInfo.retrieval_results, null, 2) }}</pre>
+            <pre class="bg-slate-950 p-4 rounded-lg border border-white/[0.1] font-mono text-xs text-slate-300 whitespace-pre-wrap word-break max-h-[400px] overflow-y-auto">{{ JSON.stringify(currentDebugInfo.retrieval_results, null, 2) }}</pre>
           </el-collapse-item>
         </el-collapse>
       </div>
     </el-drawer>
 
     <!-- Source Preview Drawer -->
-    <el-drawer v-model="previewVisible" :title="previewTitle" size="50%">
-      <div v-if="previewLoading" class="w-full h-full flex flex-col items-center justify-center text-slate-400">
-        <el-icon class="is-loading text-4xl mb-4"><span class="material-symbols-outlined">refresh</span></el-icon>
-        <p>正在加载原文...</p>
+    <el-drawer v-model="previewVisible" size="50%" class="cyber-drawer">
+      <template #header>
+        <div class="flex justify-between items-center w-full">
+          <span class="text-sm font-mono text-neon-cyan font-bold uppercase tracking-wider">{{ previewTitle }}</span>
+          <button v-if="previewUrl" @click="downloadPreview" class="px-3 py-1.5 rounded bg-cyan-950/40 text-neon-cyan border border-neon-cyan/30 hover:bg-neon-cyan hover:text-slate-900 transition-colors text-xs font-mono flex items-center gap-1 cursor-pointer">
+            <span class="material-symbols-outlined text-[14px]">download</span>
+            Download
+          </button>
+        </div>
+      </template>
+
+      <div v-if="previewLoading" class="w-full h-full flex flex-col items-center justify-center text-neon-cyan/50">
+        <span class="material-symbols-outlined text-4xl mb-4 animate-spin">refresh</span>
+        <p class="font-mono text-xs">Loading Source Vector...</p>
       </div>
-      <div v-else-if="previewUrl" class="w-full h-full relative bg-slate-100 rounded overflow-hidden">
-        <iframe :src="previewUrl" class="w-full h-full border-none"></iframe>
+      <div v-else-if="previewUrl" class="w-full h-full relative bg-slate-900 rounded-xl overflow-hidden border border-white/[0.05]">
+        <vue-office-docx v-if="previewFileType === 'docx'" :src="previewUrl" class="w-full h-full bg-white" />
+        <vue-office-excel v-else-if="previewFileType === 'excel'" :src="previewUrl" class="w-full h-full bg-white" />
+        <vue-office-pdf v-else-if="previewFileType === 'pdf'" :src="previewUrl" class="w-full h-full" />
+        <vue-office-pptx v-else-if="previewFileType === 'pptx'" :src="previewUrl" class="w-full h-full bg-white" />
+        <div v-else-if="previewFileType === 'image'" class="w-full h-full flex items-center justify-center bg-slate-950 overflow-auto">
+          <img :src="previewUrl" class="max-w-full max-h-full object-contain" />
+        </div>
+        <iframe v-else :src="previewUrl" class="w-full h-full border-none bg-white"></iframe>
       </div>
-      <div v-else class="w-full h-full flex items-center justify-center text-slate-400">
-        <p>暂无预览内容</p>
+      <div v-else class="w-full h-full flex items-center justify-center text-slate-500 font-mono text-xs">
+        <p>Preview stream unavailable.</p>
       </div>
     </el-drawer>
   </div>
@@ -240,7 +389,13 @@ import { computed, onMounted, onUnmounted, reactive, ref, nextTick, watch } from
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
-import CitationPanel from '@/components/CitationPanel.vue'
+import VueOfficeDocx from '@vue-office/docx'
+import '@vue-office/docx/lib/index.css'
+import VueOfficeExcel from '@vue-office/excel'
+import '@vue-office/excel/lib/index.css'
+import VueOfficePdf from '@vue-office/pdf'
+import VueOfficePptx from '@vue-office/pptx'
+
 import type { EntityId, SearchFilters } from '@/api/types'
 import { useChatStore } from '@/stores/chat'
 import { useKnowledgeStore } from '@/stores/knowledge'
@@ -263,6 +418,8 @@ const filters = reactive<SearchFilters>({
   year_from: undefined,
 })
 
+const chatSearch = ref('')
+
 const debugVisible = ref(false)
 const currentDebugInfo = ref<any>(null)
 const debugActiveNames = ref(['1', '2'])
@@ -270,22 +427,46 @@ const activeCitationId = ref<string | null>(null)
 
 const previewVisible = ref(false)
 const previewLoading = ref(false)
+const previewFileType = ref<'docx' | 'excel' | 'pdf' | 'pptx' | 'image' | 'other'>('other')
 const previewUrl = ref<string | null>(null)
 const previewTitle = ref('文档预览')
 
-const showLeftSidebar = ref(window.innerWidth >= 768)
-const showRightSidebar = ref(window.innerWidth >= 1024)
+const showLeftSidebar = ref(window.innerWidth >= 1280)
+const showRightSidebar = ref(window.innerWidth >= 1280)
+const showFilters = ref(false)
+
+const activeFiltersCount = computed(() => {
+  let count = 0
+  if (filters.doc_type) count++
+  if (filters.industry) count++
+  if (filters.service_line) count++
+  if (filters.year_from) count++
+  return count
+})
+
+const filteredSessions = computed(() => {
+  if (!chatSearch.value) return chatStore.sessions
+  return chatStore.sessions.filter(s => 
+    (s.title || '').toLowerCase().includes(chatSearch.value.toLowerCase())
+  )
+})
+
+const leftSpan = computed(() => showLeftSidebar.value ? 3 : 0)
+const rightSpan = computed(() => showRightSidebar.value ? 3 : 0)
+const centerSpan = computed(() => 12 - leftSpan.value - rightSpan.value)
+
+const centerColSpanClass = computed(() => {
+  if (centerSpan.value === 12) return 'lg:col-span-12'
+  if (centerSpan.value === 9) return 'lg:col-span-9'
+  return 'lg:col-span-6'
+})
 
 function handleResize() {
-  if (window.innerWidth < 768) {
+  if (window.innerWidth < 1280) {
     showLeftSidebar.value = false
-  } else if (!showLeftSidebar.value && window.innerWidth >= 768) {
-    showLeftSidebar.value = true
-  }
-
-  if (window.innerWidth < 1024) {
     showRightSidebar.value = false
-  } else if (!showRightSidebar.value && window.innerWidth >= 1024) {
+  } else {
+    showLeftSidebar.value = true
     showRightSidebar.value = true
   }
 }
@@ -306,6 +487,7 @@ onMounted(async () => {
     chatStore.loadSessions(spaceId.value)
   }
   window.addEventListener('resize', handleResize)
+  handleResize()
 })
 
 onUnmounted(() => {
@@ -367,7 +549,7 @@ function renderMarkdown(text: string) {
   // Format citations from [1] or 【1】 to styled HTML spans with data-id
   const processedText = text.replace(/\[(\d+)\]|【(\d+)】/g, (match, p1, p2) => {
     const id = p1 || p2
-    return `<sup class="citation-link inline-flex items-center justify-center min-w-[1.2em] h-[1.2em] px-0.5 rounded text-[0.75em] font-sans font-bold text-blue-700 bg-blue-50 border border-blue-200/60 cursor-pointer hover:bg-blue-600 hover:text-white transition-colors mx-0.5 align-super select-none" data-id="${id}">${id}</sup>`
+    return `<sup class="citation-link inline-block mx-1 font-mono font-bold text-[10px] bg-cyan-950 text-neon-cyan border border-neon-cyan/40 px-1 py-0 rounded hover:bg-neon-cyan hover:text-slate-950 transition-colors cursor-pointer select-none shadow-[0_0_6px_rgba(0,240,255,0.2)]" data-id="${id}">[${id}]</sup>`
   })
   const rawHtml = marked.parse(processedText, { async: false }) as string
   return DOMPurify.sanitize(rawHtml)
@@ -382,12 +564,19 @@ function handleCitationClick(e: MouseEvent) {
       e.preventDefault()
       const id = target.getAttribute('data-id')
       if (id) {
+        showRightSidebar.value = true // Ensure sidebar is open
         activeCitationId.value = id
         // Scroll the citation panel to the active citation
-        const citationEl = document.getElementById(`citation-card-${id}`)
-        if (citationEl) {
-          citationEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
+        setTimeout(() => {
+          const citationEl = document.getElementById(`citation-card-${id}`)
+          if (citationEl) {
+            citationEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+          // Remove highlight after a delay
+          setTimeout(() => {
+            if (activeCitationId.value === id) activeCitationId.value = null
+          }, 2500)
+        }, 100)
       }
       return
     }
@@ -398,9 +587,20 @@ function handleCitationClick(e: MouseEvent) {
 async function handlePreview(citation: import('@/api/types').AgentCitation) {
   if (!citation.source_uri || !citation.doc_id) return
   
-  previewTitle.value = citation.doc_title || '文档预览'
+  previewTitle.value = citation.doc_title || 'Document Preview'
   previewVisible.value = true
   
+  // Determine file type from extension
+  const filename = citation.source_uri.split('/').pop() || ''
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  
+  if (['doc', 'docx'].includes(ext)) previewFileType.value = 'docx'
+  else if (['xls', 'xlsx'].includes(ext)) previewFileType.value = 'excel'
+  else if (['ppt', 'pptx'].includes(ext)) previewFileType.value = 'pptx'
+  else if (ext === 'pdf') previewFileType.value = 'pdf'
+  else if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) previewFileType.value = 'image'
+  else previewFileType.value = 'other'
+
   if (citation.source_uri.startsWith('local://')) {
     previewLoading.value = true
     if (previewUrl.value && previewUrl.value.startsWith('blob:')) {
@@ -411,13 +611,21 @@ async function handlePreview(citation: import('@/api/types').AgentCitation) {
     try {
       const { http } = await import('@/api/http')
       const response = await http.get(`/api/v1/documents/${citation.doc_id}/download`, { responseType: 'blob' })
-      const contentType = response.headers['content-type'] as string | undefined
+      let contentType = response.headers['content-type'] as string | undefined
+      if (contentType && contentType.startsWith('text/') && !contentType.includes('charset')) {
+        contentType += ';charset=utf-8'
+      }
       
       const blob = new Blob([response.data as BlobPart], { type: contentType })
       let url = window.URL.createObjectURL(blob)
       
+      if (previewFileType.value === 'other') {
+         if (contentType?.includes('application/pdf')) previewFileType.value = 'pdf'
+         else if (contentType?.startsWith('image/')) previewFileType.value = 'image'
+      }
+
       // If it's a PDF, we can append #search= to trigger browser's native highlight
-      if (contentType === 'application/pdf' && citation.chunk_content) {
+      if ((contentType === 'application/pdf' || previewFileType.value === 'pdf') && citation.chunk_content) {
         // Find a representative sentence to highlight (to avoid too long search string)
         const sentences = citation.chunk_content.split(/[。！？.!?\n]/).filter(s => s.trim().length > 5)
         const searchKeyword = sentences.length > 0 ? sentences[0].trim() : citation.chunk_content.substring(0, 50)
@@ -427,7 +635,7 @@ async function handlePreview(citation: import('@/api/types').AgentCitation) {
       previewUrl.value = url
     } catch (e) {
       console.error('Failed to load document preview', e)
-      ElMessage.error('无法加载文档预览')
+      ElMessage.error('Failed to load document stream.')
       previewVisible.value = false
     } finally {
       previewLoading.value = false
@@ -437,96 +645,132 @@ async function handlePreview(citation: import('@/api/types').AgentCitation) {
     previewUrl.value = citation.source_uri
   }
 }
+
+function downloadPreview() {
+  if (!previewUrl.value) return
+  const a = document.createElement('a')
+  a.href = previewUrl.value
+  a.download = previewTitle.value
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
 </script>
 
-<style scoped>
-/* Markdown Content Styles */
-.markdown-body {
-  color: theme('colors.slate.800');
-  font-family: theme('fontFamily.serif');
-  line-height: 1.8;
-  font-size: 1.125rem; /* text-lg */
+<style>
+/* Unscoped global adjustments for this view's dynamic components if needed */
+.chat-markdown {
+  color: theme('colors.slate.200');
+  font-family: theme('fontFamily.sans');
+  line-height: 1.6;
 }
-.markdown-body :deep(p) {
-  margin-bottom: 1.25rem;
+.chat-markdown p {
+  margin-bottom: 0.75rem;
 }
-.markdown-body :deep(p:last-child) {
+.chat-markdown p:last-child {
   margin-bottom: 0;
 }
-.markdown-body :deep(h1),
-.markdown-body :deep(h2),
-.markdown-body :deep(h3),
-.markdown-body :deep(h4) {
-  font-family: theme('fontFamily.sans');
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  font-family: theme('fontFamily.display');
   font-weight: 600;
-  color: theme('colors.slate.900');
-  margin-top: 1.5rem;
+  color: theme('colors.white');
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.chat-markdown h1 { font-size: 1.25rem; }
+.chat-markdown h2 { font-size: 1.125rem; }
+.chat-markdown h3 { font-size: 1rem; }
+.chat-markdown ul, .chat-markdown ol {
   margin-bottom: 0.75rem;
-  line-height: 1.4;
+  padding-left: 1.25rem;
 }
-.markdown-body :deep(h1) { font-size: 1.5rem; }
-.markdown-body :deep(h2) { font-size: 1.25rem; }
-.markdown-body :deep(h3) { font-size: 1.125rem; }
-.markdown-body :deep(ul), .markdown-body :deep(ol) {
-  margin-bottom: 1.25rem;
-  padding-left: 1.5rem;
-}
-.markdown-body :deep(ul) { list-style-type: disc; }
-.markdown-body :deep(ol) { list-style-type: decimal; }
-.markdown-body :deep(li) { margin-bottom: 0.5rem; }
-.markdown-body :deep(a:not(.citation-link)) {
-  color: theme('colors.blue.700');
+.chat-markdown ul { list-style-type: disc; }
+.chat-markdown ol { list-style-type: decimal; }
+.chat-markdown li { margin-bottom: 0.25rem; }
+.chat-markdown a:not(.citation-link) {
+  color: theme('colors.neon-cyan');
   text-decoration: none;
 }
-.markdown-body :deep(a:not(.citation-link):hover) {
+.chat-markdown a:not(.citation-link):hover {
   text-decoration: underline;
 }
-.markdown-body :deep(strong) {
+.chat-markdown strong {
   font-weight: 700;
-  color: theme('colors.slate.900');
+  color: theme('colors.cyan.300');
 }
-.markdown-body :deep(blockquote) {
-  border-left: 4px solid theme('colors.slate.200');
-  padding-left: 1rem;
-  color: theme('colors.slate.600');
+.chat-markdown blockquote {
+  border-left: 2px solid theme('colors.cyan.500');
+  padding-left: 0.75rem;
+  color: theme('colors.slate.400');
   font-style: italic;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
+  background: rgba(0,0,0,0.2);
+  border-radius: 0 4px 4px 0;
 }
-.markdown-body :deep(code) {
+.chat-markdown code {
   font-family: theme('fontFamily.mono');
-  font-size: 0.875em;
-  background-color: theme('colors.slate.100');
-  padding: 0.2em 0.4em;
+  font-size: 0.85em;
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 0.1em 0.3em;
   border-radius: 0.25rem;
-  color: theme('colors.pink.600');
+  color: theme('colors.neon-pink');
 }
-.markdown-body :deep(pre) {
-  background-color: theme('colors.slate.50');
-  padding: 1rem;
+.chat-markdown pre {
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 0.75rem;
   border-radius: 0.5rem;
-  border: 1px solid theme('colors.slate.200');
+  border: 1px solid theme('colors.white/10');
   overflow-x: auto;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
-.markdown-body :deep(pre code) {
+.chat-markdown pre code {
   background-color: transparent;
   padding: 0;
-  color: theme('colors.slate.800');
+  color: theme('colors.slate.300');
 }
 
-/* Chat Input Reset */
-:deep(.stitch-chat-input .el-textarea__inner) {
+/* Custom scrollbar for cyber components */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
-  border: none;
-  box-shadow: none !important;
-  font-size: 16px;
-  padding: 8px 12px;
-  color: theme('colors.slate.800');
-  font-family: theme('fontFamily.sans');
-  line-height: 1.5;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 240, 255, 0.3);
 }
 
-:deep(.stitch-chat-input .el-textarea__inner::placeholder) {
-  color: theme('colors.slate.400');
+/* Drawer override */
+.cyber-drawer {
+  background: #020617 !important;
+  border-left: 1px solid rgba(255,255,255,0.1) !important;
+}
+.cyber-drawer .el-drawer__header {
+  margin-bottom: 0;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+}
+.cyber-drawer .el-drawer__body {
+  padding: 1.5rem;
+}
+.cyber-drawer .el-collapse-item__header {
+  background-color: transparent !important;
+  color: #94a3b8 !important;
+  border-bottom-color: rgba(255,255,255,0.05) !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+.cyber-drawer .el-collapse-item__wrap {
+  background-color: transparent !important;
+  border-bottom-color: rgba(255,255,255,0.05) !important;
 }
 </style>

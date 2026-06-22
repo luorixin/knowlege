@@ -145,8 +145,14 @@ public class DocumentController {
         
         String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
         
+        org.springframework.http.MediaType mediaType = org.springframework.http.MediaTypeFactory.getMediaType(filename).orElse(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM);
+        if (mediaType.getType().equals("text") && mediaType.getCharset() == null) {
+            mediaType = new org.springframework.http.MediaType(mediaType, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"; filename*=UTF-8''" + encodedFilename)
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"; filename*=UTF-8''" + encodedFilename)
                 .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
                 .body(file);
     }

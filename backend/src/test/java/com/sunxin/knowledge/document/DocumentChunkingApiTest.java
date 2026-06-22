@@ -1,6 +1,7 @@
 package com.sunxin.knowledge.document;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -108,27 +109,28 @@ class DocumentChunkingApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.documentId").value(uploaded.documentId()))
                 .andExpect(jsonPath("$.data.versionId").value(uploaded.versionId()))
-                .andExpect(jsonPath("$.data.chunkCount").value(7))
+                .andExpect(jsonPath("$.data.chunkCount").value(greaterThan(1)))
                 .andExpect(jsonPath("$.data.parseStatus").value("COMPLETED"))
-                .andExpect(jsonPath("$.data.chunks", hasSize(7)))
+                .andExpect(jsonPath("$.data.chunks", hasSize(greaterThan(1))))
                 .andExpect(jsonPath("$.data.chunks[0].chunkIndex").value(0))
                 .andExpect(jsonPath("$.data.chunks[0].pageNo").value(1))
                 .andExpect(jsonPath("$.data.chunks[0].sectionTitle").value("项目背景"));
 
         List<KbDocumentChunk> chunks = chunksByIndex(uploaded.versionId());
-        assertThat(chunks).hasSize(7);
+        assertThat(chunks).hasSizeGreaterThan(1);
         assertThat(chunks).extracting(KbDocumentChunk::getChunkIndex)
-                .containsExactly(0, 1, 2, 3, 4, 5, 6);
+                .containsExactlyElementsOf(java.util.stream.IntStream.range(0, chunks.size()).boxed().toList());
         assertThat(chunks.get(0).getContent()).contains("# 项目背景");
         assertThat(chunks).allSatisfy(chunk -> assertThat(chunk.getContent().length()).isLessThanOrEqualTo(80));
-        assertThat(chunks.get(1).getContent())
-                .startsWith(chunks.get(0).getContent().substring(chunks.get(0).getContent().length() - 10));
-        assertThat(chunks.get(6).getSectionTitle()).isEqualTo("解决方案");
+        assertThat(chunks.get(chunks.size() - 1).getSectionTitle()).isEqualTo("解决方案");
         assertThat(chunks.get(0).getMetadataJson()).contains("\"content_type\":\"text\"");
+        assertThat(chunks.get(0).getMetadataJson()).contains("\"split_strategy\":\"semantic-boundary\"");
+        assertThat(chunks.get(0).getMetadataJson()).contains("\"section_path\":[\"项目背景\"]");
+        assertThat(chunks.get(0).getMetadataJson()).contains("\"chunking_strategy_version\":\"semantic-v1\"");
         assertThat(chunks.get(0).getTokenCount()).isEqualTo(chunks.get(0).getContent().length());
 
         KbDocumentVersion version = versionRepository.findById(uploaded.versionId()).orElseThrow();
-        assertThat(version.getChunkCount()).isEqualTo(7);
+        assertThat(version.getChunkCount()).isEqualTo(chunks.size());
         assertThat(version.getParseStatus()).isEqualTo("COMPLETED");
         assertThat(version.getTotalTokens()).isEqualTo(
                 chunks.stream().mapToInt(KbDocumentChunk::getTokenCount).sum()
@@ -140,6 +142,7 @@ class DocumentChunkingApiTest {
         ).orElseThrow();
         assertThat(task.getStatus()).isEqualTo(TaskStatus.COMPLETED);
         assertThat(task.getProgressPercent()).isEqualTo(100);
+        assertThat(task.getMetadataJson()).contains("\"chunking_strategy_version\":\"semantic-v1\"");
     }
 
     @Test

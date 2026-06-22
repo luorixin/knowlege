@@ -1,222 +1,263 @@
 <template>
-  <section class="page-section">
-    <div class="section-header">
-      <div class="header-title">
-        <h2>任务中心</h2>
-        <p>统一查看解析、切片、Embedding 和检索索引任务</p>
+  <div class="font-sans flex flex-col h-[calc(100vh-140px)] min-h-[500px] text-white">
+    <!-- Outer Banner title -->
+    <div class="text-center pb-4 border-b border-white/[0.08] mb-4 shrink-0">
+      <h1 class="text-xs font-mono tracking-[0.25em] text-slate-400 uppercase m-0">
+        Task Monitor Console
+      </h1>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="cyber-panel rounded-2xl p-4 mb-5 border border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-lg font-bold text-white m-0 tracking-tight">System Tasks</h2>
+        <p class="text-[10px] font-mono text-slate-500 uppercase tracking-widest m-0">Pipeline execution tracing</p>
       </div>
-      <div class="toolbar-actions">
-        <el-select
-          v-model="spaceId"
-          class="space-select"
-          placeholder="选择知识库"
-          @change="loadTasks"
-        >
-          <el-option
-            v-for="space in knowledgeStore.spaces"
-            :key="space.id"
-            :label="space.name"
-            :value="space.id"
-          />
-        </el-select>
-        <el-select v-model="taskCategory" class="filter-select" placeholder="任务类型" @change="loadTasks">
-          <el-option label="全部阶段" value="" />
-          <el-option label="解析 / 切片" value="PARSE_CHUNK" />
-          <el-option label="Embedding / 索引" value="EMBEDDING_INDEX" />
-        </el-select>
-        <el-select v-model="status" class="filter-select" placeholder="任务状态" @change="loadTasks">
-          <el-option label="全部状态" value="" />
-          <el-option label="待处理" value="PENDING" />
-          <el-option label="运行中" value="RUNNING" />
-          <el-option label="部分成功" value="PARTIAL_SUCCESS" />
-          <el-option label="失败" value="FAILED" />
-        </el-select>
-        <el-button plain :icon="Refresh" :loading="loading" @click="loadTasks">刷新</el-button>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- space select -->
+        <div class="relative w-full md:w-48">
+           <select
+             v-model="spaceId"
+             @change="loadTasks"
+             class="w-full bg-slate-950 px-3 py-2 rounded-lg border border-white/[0.08] text-xs font-mono text-neon-cyan focus:outline-none pr-8 appearance-none cursor-pointer"
+           >
+             <option v-for="space in knowledgeStore.spaces" :key="space.id" :value="space.id">
+               {{ space.name }}
+             </option>
+           </select>
+           <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[14px] text-neon-cyan pointer-events-none">expand_more</span>
+        </div>
+
+        <div class="relative w-full md:w-36">
+           <select
+             v-model="taskCategory"
+             @change="loadTasks"
+             class="w-full bg-slate-950 px-3 py-2 rounded-lg border border-white/[0.08] text-xs font-mono text-slate-300 focus:outline-none pr-8 appearance-none cursor-pointer"
+           >
+             <option value="">All Categories</option>
+             <option value="PARSE_CHUNK">Parse / Chunk</option>
+             <option value="EMBEDDING_INDEX">Embedding / Index</option>
+           </select>
+           <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[14px] text-slate-500 pointer-events-none">expand_more</span>
+        </div>
+
+        <div class="relative w-full md:w-36">
+           <select
+             v-model="status"
+             @change="loadTasks"
+             class="w-full bg-slate-950 px-3 py-2 rounded-lg border border-white/[0.08] text-xs font-mono text-slate-300 focus:outline-none pr-8 appearance-none cursor-pointer"
+           >
+             <option value="">All Statuses</option>
+             <option value="PENDING">Pending</option>
+             <option value="RUNNING">Running</option>
+             <option value="PARTIAL_SUCCESS">Partial Success</option>
+             <option value="FAILED">Failed</option>
+           </select>
+           <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[14px] text-slate-500 pointer-events-none">expand_more</span>
+        </div>
+
+        <button @click="loadTasks" :disabled="loading" class="py-2 px-3 rounded-lg border border-white/[0.08] hover:border-neon-cyan hover:text-neon-cyan text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+          <span class="material-symbols-outlined text-[14px]" :class="{ 'animate-spin': loading }">refresh</span>
+          <span>Refresh</span>
+        </button>
       </div>
     </div>
 
-    <el-alert
-      v-if="error"
-      :title="error"
-      type="error"
-      show-icon
-      :closable="false"
-    />
+    <!-- Alert -->
+    <div v-if="error" class="mb-5 p-3 rounded-lg bg-red-950/40 border border-red-500/30 text-red-400 text-xs font-mono flex items-center gap-2">
+      <span class="material-symbols-outlined text-[16px]">error</span>
+      {{ error }}
+    </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-2">
-      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-slate-400">
-        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">总任务数</span>
-        <strong class="text-3xl font-bold text-slate-800">{{ rows.length }}</strong>
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-5 shrink-0">
+      <div class="cyber-panel rounded-xl p-4 border border-white/[0.05] border-l-2 border-l-slate-500 flex flex-col justify-center relative overflow-hidden">
+        <div class="absolute right-[-10px] top-[-10px] text-slate-800 opacity-50 text-[64px] font-black material-symbols-outlined">data_usage</div>
+        <span class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1 relative z-10">Total Tasks</span>
+        <strong class="text-3xl font-bold text-white relative z-10">{{ rows.length }}</strong>
       </div>
-      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-amber-400">
-        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">待处理 (PENDING)</span>
-        <strong class="text-3xl font-bold text-amber-600">{{ statusCount.PENDING }}</strong>
+      <div class="cyber-panel rounded-xl p-4 border border-white/[0.05] border-l-2 border-l-amber-500 flex flex-col justify-center relative overflow-hidden">
+        <div class="absolute right-[-10px] top-[-10px] text-amber-900/20 text-[64px] font-black material-symbols-outlined">pending_actions</div>
+        <span class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1 relative z-10">Pending</span>
+        <strong class="text-3xl font-bold text-amber-400 relative z-10 shadow-[0_0_10px_rgba(251,191,36,0.3)]">{{ statusCount.PENDING }}</strong>
       </div>
-      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-blue-400">
-        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">运行中 (RUNNING)</span>
-        <strong class="text-3xl font-bold text-blue-600">{{ statusCount.RUNNING }}</strong>
+      <div class="cyber-panel rounded-xl p-4 border border-white/[0.05] border-l-2 border-l-blue-500 flex flex-col justify-center relative overflow-hidden">
+        <div class="absolute right-[-10px] top-[-10px] text-blue-900/20 text-[64px] font-black material-symbols-outlined">model_training</div>
+        <span class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1 relative z-10">Running</span>
+        <strong class="text-3xl font-bold text-blue-400 relative z-10 shadow-[0_0_10px_rgba(96,165,250,0.3)]">{{ statusCount.RUNNING }}</strong>
       </div>
-      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-orange-400" :class="{'opacity-75 grayscale': statusCount.PARTIAL_SUCCESS === 0}">
-        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">部分成功 (PARTIAL)</span>
-        <strong class="text-3xl font-bold text-orange-500">{{ statusCount.PARTIAL_SUCCESS }}</strong>
+      <div class="cyber-panel rounded-xl p-4 border border-white/[0.05] border-l-2 border-l-orange-500 flex flex-col justify-center relative overflow-hidden" :class="{'opacity-60 grayscale': statusCount.PARTIAL_SUCCESS === 0}">
+        <div class="absolute right-[-10px] top-[-10px] text-orange-900/20 text-[64px] font-black material-symbols-outlined">warning</div>
+        <span class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1 relative z-10">Partial Success</span>
+        <strong class="text-3xl font-bold text-orange-400 relative z-10">{{ statusCount.PARTIAL_SUCCESS }}</strong>
       </div>
-      <div class="stitch-card flex flex-col justify-center p-4 bg-white border-l-4 border-l-red-500" :class="{'opacity-75 grayscale': statusCount.FAILED === 0}">
-        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">失败 (FAILED)</span>
-        <strong class="text-3xl font-bold" :class="statusCount.FAILED > 0 ? 'text-red-600' : 'text-slate-400'">{{ statusCount.FAILED }}</strong>
+      <div class="cyber-panel rounded-xl p-4 border border-white/[0.05] border-l-2 border-l-red-500 flex flex-col justify-center relative overflow-hidden" :class="{'opacity-60 grayscale': statusCount.FAILED === 0}">
+        <div class="absolute right-[-10px] top-[-10px] text-red-900/20 text-[64px] font-black material-symbols-outlined">error</div>
+        <span class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1 relative z-10">Failed</span>
+        <strong class="text-3xl font-bold relative z-10" :class="statusCount.FAILED > 0 ? 'text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'text-slate-500'">{{ statusCount.FAILED }}</strong>
       </div>
     </div>
 
-    <div class="stitch-card-table">
+    <!-- Table -->
+    <div class="cyber-panel rounded-2xl p-4 border border-white/[0.06] flex-1 overflow-hidden flex flex-col min-h-0">
       <el-table
         v-loading="loading"
         :data="rows"
         row-key="task_key"
-        empty-text="暂无任务"
-        class="stitch-table"
+        empty-text="No active tasks"
+        class="flex-1 w-full"
+        height="100%"
       >
-        <el-table-column label="阶段" width="170">
+        <el-table-column label="Stage" width="180">
           <template #default="{ row }">
-            <div class="stage-cell">
-              <el-tag :type="categoryTagType(row.task_category)" effect="plain" class="stitch-tag">
+            <div class="flex flex-col gap-1">
+              <span class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border inline-block w-fit" 
+                    :class="row.task_category === 'EMBEDDING_INDEX' ? 'bg-cyan-950/30 border-neon-cyan/50 text-neon-cyan' : 'bg-slate-800 border-slate-600 text-slate-300'">
                 {{ row.stage_label || categoryLabel(row.task_category) }}
-              </el-tag>
-              <span class="task-key">{{ row.task_key }}</span>
+              </span>
+              <span class="text-[9px] font-mono text-slate-500 truncate" :title="row.task_key">{{ row.task_key }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="文档" min-width="220" show-overflow-tooltip>
+        <el-table-column label="Document" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
-            <div class="doc-cell">
-              <span class="doc-title">{{ row.document_title || '-' }}</span>
-              <span class="doc-meta">doc {{ row.doc_id || '-' }} / version {{ row.version_id || '-' }}</span>
+            <div class="flex flex-col gap-1">
+              <span class="text-xs font-semibold text-slate-200 truncate">{{ row.document_title || '-' }}</span>
+              <span class="text-[10px] font-mono text-slate-500">ID: {{ row.doc_id || '-' }} | V: {{ row.version_id || '-' }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="120">
+        <el-table-column label="Status" width="130">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" effect="plain" class="stitch-tag">
-              {{ statusLabel(row.status) }}
-            </el-tag>
+            <span class="text-[10px] font-mono font-bold px-2 py-1 rounded border uppercase" :class="statusClass(row.status)">
+              {{ row.status }}
+            </span>
           </template>
         </el-table-column>
-        <el-table-column label="进度" width="160">
+        <el-table-column label="Progress" width="160">
           <template #default="{ row }">
             <el-progress 
               :percentage="progress(row)" 
               :status="progressStatus(row.status)" 
               :striped="row.status === 'RUNNING'" 
               :striped-flow="row.status === 'RUNNING'" 
-              :stroke-width="10"
+              :stroke-width="6"
+              :color="progressColor(row.status)"
             />
           </template>
         </el-table-column>
-        <el-table-column label="模型 / 解析详情" min-width="220" show-overflow-tooltip>
+        <el-table-column label="Compute Target" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
-            <div class="target-cell">
-              <span>{{ modelLabel(row) }}</span>
-              <small>{{ indexLabel(row) }}</small>
+            <div class="flex flex-col gap-0.5">
+              <span class="text-xs text-slate-300">{{ modelLabel(row) }}</span>
+              <span class="text-[10px] font-mono text-slate-500">{{ indexLabel(row) }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="重试" width="90">
+        <el-table-column label="Retries" width="80" align="center">
           <template #default="{ row }">
-            {{ row.retry_count || 0 }}
+            <span class="text-xs font-mono text-slate-400">{{ row.retry_count || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="更新时间" width="180">
+        <el-table-column label="Updated At" width="160">
           <template #default="{ row }">
-            {{ formatTime(row.updated_at || row.created_at) }}
+             <span class="text-[10px] font-mono text-slate-400">{{ formatTime(row.updated_at || row.created_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="210" fixed="right">
+        <el-table-column label="Actions" width="160" fixed="right">
           <template #default="{ row }">
-            <div class="row-actions">
-              <el-button
+            <div class="flex items-center gap-2">
+              <button
                 v-if="row.runnable"
-                link
-                type="primary"
-                :icon="VideoPlay"
-                :loading="operatingKey === row.task_key"
+                class="px-2 py-1 bg-cyan-950/30 border border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan hover:text-slate-900 rounded text-[10px] font-mono uppercase transition-colors disabled:opacity-50 flex items-center gap-1 cursor-pointer outline-none"
+                :disabled="operatingKey === row.task_key"
                 @click="handleRun(row)"
               >
-                执行
-              </el-button>
-              <el-button
+                <span class="material-symbols-outlined text-[12px]" :class="{ 'animate-spin': operatingKey === row.task_key }">{{ operatingKey === row.task_key ? 'refresh' : 'play_arrow' }}</span>
+                Exec
+              </button>
+              <button
                 v-if="row.retryable"
-                link
-                type="warning"
-                :icon="RefreshRight"
-                :loading="operatingKey === row.task_key"
+                class="px-2 py-1 bg-amber-950/30 border border-amber-500/50 text-amber-500 hover:bg-amber-500 hover:text-slate-900 rounded text-[10px] font-mono uppercase transition-colors disabled:opacity-50 flex items-center gap-1 cursor-pointer outline-none"
+                :disabled="operatingKey === row.task_key"
                 @click="handleRetry(row)"
               >
-                重试
-              </el-button>
-              <el-button
+                <span class="material-symbols-outlined text-[12px]" :class="{ 'animate-spin': operatingKey === row.task_key }">refresh</span>
+                Retry
+              </button>
+              <button
                 v-if="row.error_message || (row.metadata && row.metadata.errors && row.metadata.errors.length > 0)"
-                link
-                type="danger"
-                :icon="WarningFilled"
+                class="px-2 py-1 bg-red-950/30 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white rounded text-[10px] font-mono uppercase transition-colors flex items-center gap-1 cursor-pointer outline-none"
                 @click="viewError(row)"
               >
-                错误
-              </el-button>
-              <span v-if="!row.runnable && !row.retryable && !row.error_message && (!row.metadata || !row.metadata.errors || row.metadata.errors.length === 0)" class="muted-action">-</span>
+                <span class="material-symbols-outlined text-[12px]">warning</span>
+                Err
+              </button>
+              <span v-if="!row.runnable && !row.retryable && !row.error_message && (!row.metadata || !row.metadata.errors || row.metadata.errors.length === 0)" class="text-slate-600 text-xs">-</span>
             </div>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
-    <el-dialog v-model="errorDialogVisible" title="任务执行错误" width="640px" class="stitch-dialog">
+    <!-- Error Drawer (replaces dialog for cyber feel) -->
+    <el-drawer v-model="errorDialogVisible" title="Task Fault Trace" size="640px" class="cyber-drawer">
       <div v-if="currentErrorTask" class="flex flex-col gap-4">
-        <el-alert
-          type="error"
-          show-icon
-          :closable="false"
-          class="border border-red-200"
-        >
-          <template #title>
-            <span class="font-bold">阶段：{{ currentErrorTask.stage_label }}</span>
-          </template>
-          <p class="mt-1 m-0 text-sm opacity-90">任务 ID: {{ currentErrorTask.task_key }}</p>
-        </el-alert>
         
-        <div class="stitch-card !p-4 bg-slate-50 border-slate-200">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">错误代码</span>
-            <el-tag size="small" type="danger" effect="plain" class="font-mono bg-white">{{ currentErrorTask.error_code || 'PARTIAL_ERROR' }}</el-tag>
+        <div class="p-3 bg-red-950/20 border border-red-500/30 rounded-lg flex flex-col gap-1">
+          <div class="flex items-center gap-2 text-red-400">
+            <span class="material-symbols-outlined text-lg">dangerous</span>
+            <span class="font-bold font-mono text-sm uppercase">Stage: {{ currentErrorTask.stage_label || categoryLabel(currentErrorTask.task_category) }}</span>
           </div>
-          <div class="mt-4" v-if="currentErrorTask.error_message">
-            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">详细堆栈与日志</span>
-            <div class="bg-slate-900 rounded-lg p-4 overflow-auto max-h-[200px]">
-              <code class="text-red-400 font-mono text-sm leading-relaxed whitespace-pre-wrap break-all">{{ currentErrorTask.error_message }}</code>
+          <p class="m-0 text-xs font-mono text-slate-400 ml-7">ID: {{ currentErrorTask.task_key }}</p>
+        </div>
+        
+        <div class="cyber-panel rounded-xl p-4 border border-white/[0.06]">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="text-[10px] font-mono text-slate-500 uppercase tracking-wider font-bold">Error Code</span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-red-950/40 border border-red-500 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.2)]">
+              {{ currentErrorTask.error_code || 'PARTIAL_ERROR' }}
+            </span>
+          </div>
+          
+          <div v-if="currentErrorTask.error_message" class="mb-4">
+            <span class="text-[10px] font-mono text-slate-500 uppercase tracking-wider font-bold mb-2 block">Stack Trace / Log</span>
+            <div class="bg-slate-950 rounded-lg p-3 border border-white/[0.05] overflow-auto max-h-[300px] scrollbar-thin">
+              <code class="text-red-400 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all">{{ currentErrorTask.error_message }}</code>
             </div>
           </div>
           
-          <div class="mt-4" v-if="currentErrorTask.metadata?.errors?.length">
-            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">页面解析错误 ({{ currentErrorTask.metadata.errors.length }})</span>
-            <div class="bg-red-50 border border-red-100 rounded-lg max-h-[300px] overflow-auto">
-              <div v-for="(err, idx) in currentErrorTask.metadata.errors" :key="idx" class="p-3 border-b border-red-100 last:border-0">
-                <div class="flex gap-2 items-start mb-1">
-                  <el-tag size="small" type="danger" effect="dark">页 {{ err.page_no ?? '未知' }}</el-tag>
-                  <span class="text-sm font-semibold text-red-800">{{ err.error_type || 'Error' }}</span>
+          <div v-if="currentErrorTask.metadata?.errors?.length">
+            <span class="text-[10px] font-mono text-slate-500 uppercase tracking-wider font-bold mb-2 block">Parse Errors ({{ currentErrorTask.metadata.errors.length }})</span>
+            <div class="bg-slate-950 rounded-lg border border-white/[0.05] max-h-[300px] overflow-auto scrollbar-thin flex flex-col">
+              <div v-for="(err, idx) in currentErrorTask.metadata.errors" :key="idx" class="p-3 border-b border-white/[0.05] last:border-0 flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-mono bg-red-950/50 text-red-400 px-1 py-0.5 rounded border border-red-900">Page {{ err.page_no ?? '?' }}</span>
+                  <span class="text-xs font-mono text-slate-300 font-bold">{{ err.error_type || 'Unknown Fault' }}</span>
                 </div>
-                <div class="text-xs text-red-600 font-mono pl-1">{{ err.error_message || JSON.stringify(err) }}</div>
+                <div class="text-[10px] text-red-400/80 font-mono mt-1">{{ err.error_message || JSON.stringify(err) }}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
       <template #footer>
-        <el-button @click="errorDialogVisible = false" plain class="stitch-btn">关闭</el-button>
-        <el-button v-if="currentErrorTask?.retryable" type="warning" :icon="RefreshRight" @click="handleRetry(currentErrorTask); errorDialogVisible = false" class="stitch-btn">重新尝试</el-button>
+        <div class="flex items-center justify-end gap-3 w-full">
+          <button @click="errorDialogVisible = false" class="px-4 py-2 rounded bg-slate-800 text-white text-xs font-mono border border-slate-700 hover:bg-slate-700 transition-colors cursor-pointer">
+            Close
+          </button>
+          <button v-if="currentErrorTask?.retryable" @click="handleRetry(currentErrorTask); errorDialogVisible = false" class="px-4 py-2 rounded bg-amber-950/30 text-amber-500 border border-amber-500/50 hover:bg-amber-500 hover:text-slate-900 transition-colors text-xs font-mono flex items-center gap-1 cursor-pointer">
+            <span class="material-symbols-outlined text-[14px]">refresh</span>
+            Force Retry
+          </button>
+        </div>
       </template>
-    </el-dialog>
-  </section>
+    </el-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { Refresh, RefreshRight, VideoPlay, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
@@ -299,14 +340,14 @@ async function loadTasks(silent?: boolean | Event) {
 async function handleRun(row: TaskCenterItem) {
   await operate(row, async () => {
     await runTask(row.task_key)
-    ElMessage.success('任务已执行')
+    ElMessage.success('Task execution requested')
   })
 }
 
 async function handleRetry(row: TaskCenterItem) {
   await operate(row, async () => {
     await retryTask(row.task_key)
-    ElMessage.success('任务已重置为待处理')
+    ElMessage.success('Task queued for retry')
   })
 }
 
@@ -332,13 +373,13 @@ function progress(row: TaskCenterItem): number {
   return Math.min(Math.max(row.progress_percent ?? 0, 0), 100)
 }
 
-function statusTagType(value: string) {
-  if (value === 'COMPLETED') return 'success'
-  if (value === 'PARTIAL_SUCCESS') return 'warning'
-  if (value === 'FAILED') return 'danger'
-  if (value === 'RUNNING') return 'primary'
-  if (value === 'PENDING') return 'warning'
-  return 'info'
+function statusClass(value: string) {
+  if (value === 'COMPLETED') return 'bg-green-950/40 text-green-400 border-green-500/40'
+  if (value === 'PARTIAL_SUCCESS') return 'bg-orange-950/40 text-orange-400 border-orange-500/40'
+  if (value === 'FAILED') return 'bg-red-950/40 text-red-400 border-red-500/40'
+  if (value === 'RUNNING') return 'bg-blue-950/40 text-blue-400 border-blue-500/40 animate-pulse'
+  if (value === 'PENDING') return 'bg-amber-950/40 text-amber-400 border-amber-500/40'
+  return 'bg-slate-800 text-slate-300 border-slate-600'
 }
 
 function progressStatus(value: string) {
@@ -348,55 +389,49 @@ function progressStatus(value: string) {
   return undefined
 }
 
-function categoryTagType(value: string) {
-  return value === 'EMBEDDING_INDEX' ? 'primary' : 'info'
+function progressColor(value: string) {
+  if (value === 'COMPLETED') return '#22c55e'
+  if (value === 'PARTIAL_SUCCESS') return '#f97316'
+  if (value === 'FAILED') return '#ef4444'
+  if (value === 'RUNNING') return '#3b82f6'
+  if (value === 'PENDING') return '#f59e0b'
+  return '#94a3b8'
 }
 
 function categoryLabel(value: string) {
-  if (value === 'PARSE_CHUNK') return '解析 / 切片'
-  if (value === 'EMBEDDING_INDEX') return 'Embedding / 索引'
+  if (value === 'PARSE_CHUNK') return 'Parse / Chunk'
+  if (value === 'EMBEDDING_INDEX') return 'Embed / Index'
   return value || '-'
-}
-
-function statusLabel(value: string) {
-  const labels: Record<string, string> = {
-    PENDING: '待处理',
-    RUNNING: '运行中',
-    PARTIAL_SUCCESS: '部分成功',
-    COMPLETED: '已完成',
-    FAILED: '失败',
-  }
-  return labels[value] || value || '-'
 }
 
 function modelLabel(row: TaskCenterItem) {
   if (row.task_category === 'PARSE_CHUNK') {
     if (row.metadata?.parser) {
-      return `解析引擎: ${row.metadata.parser}`
+      return `Engine: ${row.metadata.parser}`
     }
-    return row.worker_id ? `Worker: ${row.worker_id}` : '解析与切片流水线'
+    return row.worker_id ? `Worker: ${row.worker_id}` : 'Parse & Chunk Pipeline'
   }
   const model = [row.model_provider, row.model_name].filter(Boolean).join(' / ')
-  return model || '等待模型执行'
+  return model || 'Awaiting model selection'
 }
 
 function indexLabel(row: TaskCenterItem) {
   if (row.task_category === 'PARSE_CHUNK') {
     if (row.metadata) {
       const parts = []
-      if (row.metadata.page_count != null) parts.push(`共 ${row.metadata.page_count} 页`)
-      if (row.metadata.block_count != null) parts.push(`生成 ${row.metadata.block_count} 个Block`)
-      if (row.metadata.error_count != null && row.metadata.error_count > 0) parts.push(`${row.metadata.error_count}页失败`)
-      return parts.join(' | ') || (row.finished_at ? `完成于 ${formatTime(row.finished_at)}` : '-')
+      if (row.metadata.page_count != null) parts.push(`${row.metadata.page_count} pages`)
+      if (row.metadata.block_count != null) parts.push(`${row.metadata.block_count} blocks`)
+      if (row.metadata.error_count != null && row.metadata.error_count > 0) parts.push(`${row.metadata.error_count} fails`)
+      return parts.join(' | ') || (row.finished_at ? `Finished: ${formatTime(row.finished_at)}` : '-')
     }
-    return row.finished_at ? `完成于 ${formatTime(row.finished_at)}` : '生成 chunk 后创建索引任务'
+    return row.finished_at ? `Finished: ${formatTime(row.finished_at)}` : 'Generating chunks...'
   }
   const parts = []
-  if (row.embedding_dimension) parts.push(`${row.embedding_dimension} 维`)
+  if (row.embedding_dimension) parts.push(`${row.embedding_dimension}d`)
   if (row.index_name) parts.push(row.index_name)
   if (row.vector_collection) parts.push(row.vector_collection)
   if (row.chunk_id) parts.push(`chunk ${row.chunk_id}`)
-  return parts.join(' / ') || '关键词索引 + 向量索引'
+  return parts.join(' / ') || 'Vector + Keyword Indexing'
 }
 
 function formatTime(value?: string) {
@@ -405,141 +440,49 @@ function formatTime(value?: string) {
 }
 </script>
 
-<style scoped>
-.page-section {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+<style>
+/* Custom scrollbar for cyber components */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 240, 255, 0.3);
 }
 
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
+/* Drawer override */
+.cyber-drawer {
+  background: #020617 !important;
+  border-left: 1px solid rgba(255,255,255,0.1) !important;
 }
-
-.header-title h2 {
-  font-size: 26px;
+.cyber-drawer .el-drawer__header {
+  margin-bottom: 0;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   font-weight: 700;
-  color: #191b24;
-  margin: 0 0 8px 0;
-  letter-spacing: 0;
+}
+.cyber-drawer .el-drawer__body {
+  padding: 1.5rem;
 }
 
-.header-title p {
-  font-size: 14px;
-  color: #596070;
-  margin: 0;
+/* El Progress overrides for dark theme */
+.el-progress__text {
+  color: #fff !important;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 10px !important;
 }
-
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.space-select {
-  width: 220px;
-}
-
-.filter-select {
-  width: 150px;
-}
-
-.summary-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr));
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid #e3e8f0;
-  border-radius: 8px;
-  background: #f8fafc;
-}
-
-.summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.summary-label {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.summary-item strong {
-  font-size: 22px;
-  line-height: 1;
-  color: #1f2937;
-}
-
-.danger-number {
-  color: #c2410c !important;
-}
-
-.stage-cell,
-.doc-cell,
-.target-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.task-key,
-.doc-meta,
-.target-cell small {
-  font-size: 12px;
-  color: #7b8190;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.doc-title,
-.target-cell span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.row-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 28px;
-}
-
-.muted-action {
-  color: #9ca3af;
-}
-
-.text-danger {
-  color: #c2410c;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-@media (max-width: 960px) {
-  .section-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .toolbar-actions {
-    justify-content: flex-start;
-  }
-
-  .space-select,
-  .filter-select {
-    width: 100%;
-  }
-
-  .summary-strip {
-    grid-template-columns: repeat(2, minmax(120px, 1fr));
-  }
+.el-progress-bar__outer {
+  background-color: rgba(255,255,255,0.1) !important;
 }
 </style>

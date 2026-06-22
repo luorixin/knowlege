@@ -298,8 +298,8 @@ class PermissionEnforcementApiTest {
 
     private void createUser(Long tenantId, Long userId, String username) {
         jdbcTemplate.update("""
-                INSERT INTO kb_user (id, tenant_id, username, display_name, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO kb_user (id, tenant_id, username, display_name, password, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'dummy_password', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """, userId, tenantId, username, username);
     }
 

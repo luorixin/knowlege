@@ -1,0 +1,6 @@
+{
+  "name": "Enterprise Knowledge Base Agent",
+  "description": "An enterprise-grade knowledge base console with secure document management, Next-Gen task telemetry tracking, cybersecurity permissions control, and an advanced RAG-powered command chat with evidence tracing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

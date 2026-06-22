@@ -29,6 +29,8 @@ public class OpenAiCompatibleLlmProvider implements LlmProvider {
     private final Duration timeout;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    @org.springframework.beans.factory.annotation.Value("${knowledge.llm.enable-json-format-response:true}")
+    private boolean enableJsonFormatResponse;
     private final org.springframework.core.task.TaskExecutor taskExecutor;
 
     public OpenAiCompatibleLlmProvider(
@@ -154,6 +156,9 @@ public class OpenAiCompatibleLlmProvider implements LlmProvider {
             Map<String, Object> body = new HashMap<>();
             body.put("model", modelName);
             body.put("stream", false);
+            if (enableJsonFormatResponse) {
+                body.put("response_format", java.util.Map.of("type", "json_object"));
+            }
             // body.put("response_format", Map.of("type", "json_object"));
 
             List<Map<String, String>> messages = new ArrayList<>();

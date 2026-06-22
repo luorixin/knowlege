@@ -1,189 +1,324 @@
 <template>
-  <section class="page-section max-w-[1400px] mx-auto py-8 px-6">
-    <div class="flex items-center justify-between mb-8">
-      <div>
-        <h2 class="text-2xl font-bold text-slate-900 tracking-tight m-0">文档库管理</h2>
-        <p class="text-slate-500 mt-1.5 font-medium m-0 flex items-center gap-2">
-          <span class="material-symbols-outlined text-[16px]">folder_open</span>
-          当前空间：{{ selectedSpace?.name || '-' }}
+  <div class="font-sans flex flex-col h-[calc(100vh-140px)] min-h-[500px] text-white">
+    <!-- Outer Banner title -->
+    <div class="text-center pb-4 border-b border-white/[0.08] mb-4 shrink-0">
+      <h1 class="text-xs font-mono tracking-[0.25em] text-slate-400 uppercase m-0">
+        Data Matrix Interface
+      </h1>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="cyber-panel rounded-2xl p-4 mb-5 border border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-lg font-bold text-white m-0 tracking-tight">Enclave Databanks</h2>
+        <p class="text-[10px] font-mono text-slate-500 uppercase tracking-widest m-0 flex items-center gap-1">
+          <span class="material-symbols-outlined text-[12px]">folder_open</span>
+          NEXUS: {{ selectedSpace?.name || '-' }}
         </p>
       </div>
-      <div class="flex items-center gap-3">
-        <el-select
-          v-model="currentSpaceId"
-          class="w-56"
-          placeholder="选择知识库"
-          @change="loadDocuments"
-        >
-          <el-option
-            v-for="space in knowledgeStore.spaces"
-            :key="space.id"
-            :label="space.name"
-            :value="space.id"
-          />
-        </el-select>
-        <el-button :icon="Refresh" :loading="loading" @click="loadDocuments" class="!rounded-lg font-medium shadow-sm hover:text-blue-600">刷新</el-button>
-        <el-button type="primary" :icon="UploadFilled" @click="router.push('/documents/upload')" class="!rounded-lg font-medium shadow-md shadow-blue-500/20 bg-blue-700 hover:bg-blue-600 border-none">
-          上传新文档
-        </el-button>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="relative w-full md:w-64">
+           <select
+             v-model="currentSpaceId"
+             class="w-full bg-slate-950 px-3 py-2 rounded-lg border border-white/[0.08] text-xs font-mono text-neon-cyan focus:outline-none pr-8 appearance-none cursor-pointer"
+           >
+             <option v-for="space in knowledgeStore.spaces" :key="space.id" :value="space.id">
+               {{ space.name }}
+             </option>
+           </select>
+           <span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[14px] text-neon-cyan pointer-events-none">expand_more</span>
+        </div>
+        <button @click="loadDocuments()" :disabled="loading" class="py-2 px-3 rounded-lg border border-white/[0.08] hover:border-neon-cyan hover:text-neon-cyan text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 outline-none">
+          <span class="material-symbols-outlined text-[14px]" :class="{ 'animate-spin': loading }">refresh</span>
+          <span>Sync</span>
+        </button>
+        <button @click="router.push('/documents/upload')" class="py-2 px-4 rounded-lg bg-neon-cyan text-slate-900 border border-neon-cyan hover:bg-cyan-400 hover:shadow-[0_0_15px_rgba(0,240,255,0.4)] text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer uppercase tracking-wider outline-none">
+          <span class="material-symbols-outlined text-[14px]">upload</span>
+          Inject Data
+        </button>
       </div>
     </div>
 
-    <el-alert
-      v-if="error"
-      :title="error"
-      type="error"
-      show-icon
-      :closable="false"
-      class="mb-6 !rounded-xl"
-    />
+    <!-- Alert -->
+    <div v-if="error" class="mb-5 p-3 rounded-lg bg-red-950/40 border border-red-500/30 text-red-400 text-xs font-mono flex items-center gap-2 shrink-0">
+      <span class="material-symbols-outlined text-[16px]">error</span>
+      {{ error }}
+    </div>
 
-    <div class="stitch-card stitch-card-table bg-white/80 backdrop-blur-sm">
+    <!-- Table -->
+    <div class="cyber-panel rounded-2xl p-4 border border-white/[0.06] flex-1 overflow-hidden flex flex-col min-h-0">
       <el-table
         v-loading="loading"
         :data="documents"
         row-key="id"
-        empty-text="当前知识库暂无文档"
-        class="w-full"
+        empty-text="No data packets found in this nexus."
+        class="flex-1 w-full"
+        height="100%"
       >
-        <el-table-column prop="title" label="文档名称" min-width="260" show-overflow-tooltip>
+        <el-table-column prop="title" label="Document Alias" min-width="260" show-overflow-tooltip>
           <template #default="{ row }">
-            <div class="flex items-center gap-3 font-medium text-slate-800">
-              <span class="material-symbols-outlined text-blue-600/70 text-[20px]" v-if="row.docType === 'pdf'">picture_as_pdf</span>
-              <span class="material-symbols-outlined text-blue-600/70 text-[20px]" v-else>description</span>
-              {{ row.title }}
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-[20px]" :class="row.docType === 'pdf' ? 'text-red-400' : 'text-neon-cyan'">
+                {{ row.docType === 'pdf' ? 'picture_as_pdf' : 'description' }}
+              </span>
+              <span class="font-medium text-slate-200">{{ row.title }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="docType" label="格式" width="100">
+        <el-table-column prop="docType" label="Format" width="100">
           <template #default="{ row }">
-            <span class="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-bold uppercase tracking-wider">{{ row.docType || 'TXT' }}</span>
+            <span class="px-2 py-0.5 bg-slate-900 border border-white/[0.1] text-slate-400 rounded text-[9px] font-mono uppercase tracking-wider">{{ row.docType || 'TXT' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="industry" label="行业" width="130" />
-        <el-table-column prop="serviceLine" label="服务线" width="150" />
-        <el-table-column prop="confidentialLevel" label="密级" width="100">
+        <el-table-column prop="industry" label="Sector" width="130">
+           <template #default="{ row }">
+             <span class="text-[10px] font-mono text-slate-400">{{ row.industry || '-' }}</span>
+           </template>
+        </el-table-column>
+        <el-table-column prop="serviceLine" label="Vector" width="150">
+           <template #default="{ row }">
+             <span class="text-[10px] font-mono text-slate-400">{{ row.serviceLine || '-' }}</span>
+           </template>
+        </el-table-column>
+        <el-table-column prop="confidentialLevel" label="Security" width="100">
           <template #default="{ row }">
-            <span :class="row.confidentialLevel === 'HIGH' ? 'text-red-600 font-bold' : 'text-slate-600'">{{ row.confidentialLevel || '-' }}</span>
+             <span class="text-[10px] font-mono uppercase tracking-wider font-bold" :class="row.confidentialLevel === 'HIGH' ? 'text-red-400' : 'text-slate-500'">{{ row.confidentialLevel || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="解析状态" width="130">
+        <el-table-column prop="status" label="Integrity" width="130">
           <template #default="{ row }">
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-                  :class="row.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'">
-              <span class="w-1.5 h-1.5 rounded-full" :class="row.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
-              {{ row.status === 'ACTIVE' ? '可用' : row.status }}
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] font-mono uppercase font-bold tracking-wider"
+                  :class="row.status === 'ACTIVE' ? 'bg-green-950/30 text-green-400 border-green-500/50' : 'bg-slate-800 text-slate-400 border-slate-600'">
+              <span class="w-1.5 h-1.5 rounded-full" :class="row.status === 'ACTIVE' ? 'bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)]' : 'bg-slate-500'"></span>
+              {{ row.status === 'ACTIVE' ? 'ONLINE' : row.status }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right" align="right">
+        <el-table-column label="Actions" width="220" fixed="right" align="right">
           <template #default="{ row }">
-            <el-button link type="primary" class="!font-semibold hover:text-blue-800" @click="openDetail(row.id)">详情</el-button>
-            <el-button link type="primary" class="!font-semibold hover:text-blue-800" @click="openParseStatus(row.id)">状态</el-button>
-            <el-button link type="danger" class="!font-semibold" @click="removeDocument(row.id)">删除</el-button>
+            <div class="flex items-center justify-end gap-2">
+              <button class="px-2 py-1 bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white rounded text-[10px] font-mono uppercase transition-colors outline-none cursor-pointer" 
+                      @click="openDetail(row.id)">
+                INSPECT
+              </button>
+              <button class="px-2 py-1 bg-cyan-950/30 border border-neon-cyan/50 text-neon-cyan hover:bg-neon-cyan hover:text-slate-900 rounded text-[10px] font-mono uppercase transition-colors outline-none cursor-pointer" 
+                      @click="openParseStatus(row.id)">
+                TRACE
+              </button>
+              <button class="px-2 py-1 bg-red-950/30 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white rounded text-[10px] font-mono uppercase transition-colors outline-none cursor-pointer" 
+                      @click="removeDocument(row.id)">
+                PURGE
+              </button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
-    <el-drawer v-model="detailVisible" title="文档详情" size="520px">
-      <el-skeleton v-if="detailLoading" :rows="8" animated />
+    <!-- Details Drawer -->
+    <el-drawer v-model="detailVisible" title="Packet Inspection" size="560px" class="cyber-drawer">
+      <div v-if="detailLoading" class="p-4">
+        <div class="animate-pulse flex flex-col gap-4">
+          <div class="h-8 bg-slate-800 rounded w-full"></div>
+          <div class="h-8 bg-slate-800 rounded w-full"></div>
+          <div class="h-8 bg-slate-800 rounded w-full"></div>
+        </div>
+      </div>
       <template v-else-if="detail">
-        <el-descriptions :column="1" border class="mb-4">
-          <el-descriptions-item label="标题">{{ detail.title }}</el-descriptions-item>
-          <el-descriptions-item label="类型">{{ detail.docType || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="行业">{{ detail.industry || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="服务线">{{ detail.serviceLine || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="密级">{{ detail.confidentialLevel || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="源文件">{{ detail.sourceUri || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="Hash">{{ detail.fileHash || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="解析状态">
-            <el-tag :type="detail.currentVersion?.parseStatus === 'FAILED' ? 'danger' : (detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS' ? 'warning' : 'info')">
-              {{ detail.currentVersion?.parseStatus || '-' }}
-            </el-tag>
-            <el-button 
-              v-if="detail.currentVersion?.parseStatus === 'FAILED' || detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS'" 
-              link type="primary" 
-              class="ml-2"
-              @click="retryParse(detail.id)">
-              重试解析
-            </el-button>
-          </el-descriptions-item>
-          <el-descriptions-item label="解析失败原因" v-if="detail.currentVersion?.parseStatus === 'FAILED' || detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS'">
-            <span class="text-danger" v-if="parseStatus?.errorMessage">{{ parseStatus.errorMessage }}</span>
-            <span v-else-if="parseStatus?.metadata?.errors?.length" class="text-danger">
-              部分页面解析失败 ({{ parseStatus.metadata.error_count || parseStatus.metadata.errors.length }} 页)
-            </span>
-            <span v-else class="text-slate-400">未知原因</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="脱敏状态">
-            {{ detail.currentVersion?.desensitizeStatus || '-' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="Chunk 数">
-            {{ detail.currentVersion?.chunkCount ?? '-' }}
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <div class="chunks-preview mt-4">
-          <h4>Chunk 预览 <el-tag size="small" type="info">{{ chunks.length }}</el-tag></h4>
-          <el-scrollbar max-height="300px">
-            <div v-if="chunks.length === 0" class="text-gray-400 text-sm py-4">暂无 Chunk 数据</div>
-            <div v-for="(chunk, idx) in chunks" :key="idx" class="chunk-card">
-              <div class="chunk-header">
-                <span class="chunk-id">#{{ chunk.chunkIndex ?? idx }}</span>
-                <span class="chunk-page" v-if="chunk.pageNo">第 {{ chunk.pageNo }} 页</span>
-              </div>
-              <div class="chunk-content">{{ chunk.content }}</div>
+        <div class="cyber-panel rounded-xl p-4 border border-white/[0.06] mb-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1">
+              <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Alias</span>
+              <span class="text-xs font-mono text-slate-200 break-all">{{ detail.title }}</span>
             </div>
-          </el-scrollbar>
+            <div class="flex flex-col gap-1">
+              <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Format</span>
+              <span class="text-xs font-mono text-slate-400 uppercase">{{ detail.docType || '-' }}</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Sector</span>
+              <span class="text-xs font-mono text-slate-400">{{ detail.industry || '-' }}</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Vector</span>
+              <span class="text-xs font-mono text-slate-400">{{ detail.serviceLine || '-' }}</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Security Clearance</span>
+              <span class="text-xs font-mono font-bold" :class="detail.confidentialLevel === 'HIGH' ? 'text-red-400' : 'text-slate-400'">{{ detail.confidentialLevel || '-' }}</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Source URI</span>
+              <span class="text-[10px] font-mono text-neon-cyan truncate" :title="detail.sourceUri">{{ detail.sourceUri || '-' }}</span>
+            </div>
+            <div class="flex flex-col gap-1 col-span-2">
+              <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Hash Signature</span>
+              <span class="text-[10px] font-mono text-slate-500 break-all bg-slate-900 p-1 rounded">{{ detail.fileHash || '-' }}</span>
+            </div>
+          </div>
+          
+          <div class="mt-4 pt-4 border-t border-white/[0.05] grid grid-cols-2 gap-4">
+             <div class="flex flex-col gap-1">
+                <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Parse Integrity</span>
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded text-[9px] font-mono uppercase font-bold border" 
+                        :class="detail.currentVersion?.parseStatus === 'FAILED' ? 'bg-red-950/30 text-red-400 border-red-500/50' : (detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS' ? 'bg-orange-950/30 text-orange-400 border-orange-500/50' : 'bg-slate-800 text-slate-400 border-slate-600')">
+                    {{ detail.currentVersion?.parseStatus || '-' }}
+                  </span>
+                  <button v-if="detail.currentVersion?.parseStatus === 'FAILED' || detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS'" 
+                          @click="retryParse(detail.id)"
+                          class="px-2 py-0.5 rounded bg-amber-950/30 text-amber-500 border border-amber-500/50 hover:bg-amber-500 hover:text-slate-900 transition-colors text-[9px] font-mono flex items-center gap-1 cursor-pointer outline-none uppercase">
+                    <span class="material-symbols-outlined text-[10px]">refresh</span> Retry
+                  </button>
+                </div>
+             </div>
+             <div class="flex flex-col gap-1" v-if="detail.currentVersion?.parseStatus === 'FAILED' || detail.currentVersion?.parseStatus === 'PARTIAL_SUCCESS'">
+               <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Fault Reason</span>
+               <span class="text-[10px] font-mono text-red-400" v-if="parseStatus?.errorMessage">{{ parseStatus.errorMessage }}</span>
+               <span class="text-[10px] font-mono text-orange-400" v-else-if="parseStatus?.metadata?.errors?.length">Partial page failure ({{ parseStatus.metadata.error_count || parseStatus.metadata.errors.length }} pgs)</span>
+               <span class="text-[10px] font-mono text-slate-500" v-else>Unknown anomalies</span>
+             </div>
+             <div class="flex flex-col gap-1">
+               <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Desensitize</span>
+               <span class="text-xs font-mono text-slate-400">{{ detail.currentVersion?.desensitizeStatus || '-' }}</span>
+             </div>
+             <div class="flex flex-col gap-1">
+               <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Data Chunks</span>
+               <span class="text-xs font-mono text-neon-cyan font-bold">{{ detail.currentVersion?.chunkCount ?? '-' }}</span>
+             </div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <div class="flex items-center gap-2 mb-3 border-b border-white/[0.05] pb-2">
+             <span class="material-symbols-outlined text-neon-cyan text-[16px]">data_array</span>
+             <h4 class="m-0 text-xs font-mono uppercase tracking-widest text-slate-300 font-bold">Fragment Preview</h4>
+             <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[9px] font-mono ml-2 border border-slate-700">{{ chunks.length }} items</span>
+          </div>
+          
+          <div class="overflow-auto max-h-[300px] scrollbar-thin pr-2 flex flex-col gap-3">
+            <div v-if="chunks.length === 0" class="text-slate-500 text-xs font-mono py-4 text-center border border-dashed border-white/[0.1] rounded-lg bg-slate-900/30">
+              No fragments allocated.
+            </div>
+            <div v-for="(chunk, idx) in chunks" :key="idx" class="bg-slate-900 rounded-lg p-3 border border-white/[0.05] hover:border-white/[0.1] transition-colors relative group">
+              <div class="flex justify-between items-center mb-2 pb-2 border-b border-white/[0.05]">
+                <span class="text-[10px] font-mono text-neon-cyan font-bold bg-cyan-950/30 px-1.5 py-0.5 rounded border border-neon-cyan/20">SEQ: {{ chunk.chunkIndex ?? idx }}</span>
+                <span class="text-[9px] font-mono text-slate-500" v-if="chunk.pageNo">PG: {{ chunk.pageNo }}</span>
+              </div>
+              <div class="text-[11px] font-mono text-slate-300 leading-relaxed whitespace-pre-wrap break-all">{{ chunk.content }}</div>
+            </div>
+          </div>
         </div>
       </template>
-      <el-empty v-else description="未选择文档" />
+      <div v-else class="flex flex-col items-center justify-center h-40 text-slate-500 border border-dashed border-white/[0.1] rounded-xl bg-slate-950/30">
+        <span class="material-symbols-outlined text-4xl mb-2 opacity-50">search_off</span>
+        <span class="font-mono text-xs uppercase tracking-wider">No packet selected</span>
+      </div>
     </el-drawer>
 
-    <el-dialog v-model="statusVisible" title="解析任务状态" width="520px">
-      <el-skeleton v-if="statusLoading" :rows="5" animated />
-      <el-descriptions v-else-if="parseStatus" :column="1" border>
-        <el-descriptions-item label="任务 ID">{{ parseStatus.parseTaskId || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="阶段">{{ parseStatus.taskType || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="任务状态">
-          <el-tag :type="parseStatus.status === 'FAILED' ? 'danger' : (parseStatus.status === 'PARTIAL_SUCCESS' ? 'warning' : 'info')" size="small">
-            {{ parseStatus.status || '-' }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="解析状态">
-          <el-tag :type="parseStatus.parseStatus === 'FAILED' ? 'danger' : (parseStatus.parseStatus === 'PARTIAL_SUCCESS' ? 'warning' : 'info')" size="small">
-            {{ parseStatus.parseStatus || '-' }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="解析详情" v-if="parseStatus.metadata">
-          <div class="text-sm">
-            <div v-if="parseStatus.metadata.parser"><strong>引擎:</strong> {{ parseStatus.metadata.parser }}</div>
-            <div v-if="parseStatus.metadata.page_count != null"><strong>页数:</strong> {{ parseStatus.metadata.page_count }}</div>
-            <div v-if="parseStatus.metadata.block_count != null"><strong>Block:</strong> {{ parseStatus.metadata.block_count }}</div>
-            <div v-if="parseStatus.metadata.error_count != null && parseStatus.metadata.error_count > 0" class="text-orange-500"><strong>失败页数:</strong> {{ parseStatus.metadata.error_count }}</div>
-          </div>
-        </el-descriptions-item>
-        <el-descriptions-item label="进度">
-          <el-progress :percentage="parseStatus.progressPercent || 0" :status="parseStatus.status === 'FAILED' ? 'exception' : (parseStatus.status === 'PARTIAL_SUCCESS' ? 'warning' : '')" />
-        </el-descriptions-item>
-        <el-descriptions-item label="错误">
-          <div v-if="parseStatus.errorMessage" class="text-red-500 mb-2">{{ parseStatus.errorMessage }}</div>
-          <div v-if="parseStatus.metadata?.errors?.length" class="bg-red-50 p-2 rounded text-xs text-red-600 max-h-40 overflow-auto">
-            <div v-for="(err, idx) in parseStatus.metadata.errors" :key="idx" class="mb-1 border-b border-red-100 last:border-0 pb-1">
-              <strong>页 {{ err.page_no || '?' }}</strong>: {{ err.error_message || err.error_type || 'Error' }}
+    <!-- Status Dialog -->
+    <el-dialog v-model="statusVisible" title="Telemetry Trace" width="520px" class="cyber-dialog" :show-close="false">
+      <template #header="{ titleId, titleClass }">
+         <div class="flex items-center justify-between border-b border-white/[0.08] pb-3 mb-2">
+            <h4 :id="titleId" :class="titleClass" class="!m-0 !text-sm font-mono uppercase tracking-widest text-white flex items-center gap-2">
+              <span class="material-symbols-outlined text-neon-cyan text-[18px]">query_stats</span>
+              Telemetry Trace
+            </h4>
+            <button @click="statusVisible = false" class="text-slate-500 hover:text-white cursor-pointer outline-none">
+              <span class="material-symbols-outlined text-[18px]">close</span>
+            </button>
+         </div>
+      </template>
+      
+      <div v-if="statusLoading" class="p-4 animate-pulse flex flex-col gap-3">
+        <div class="h-6 bg-slate-800 rounded w-full"></div>
+        <div class="h-6 bg-slate-800 rounded w-3/4"></div>
+      </div>
+      <div v-else-if="parseStatus" class="flex flex-col gap-4">
+        
+        <div class="cyber-panel rounded-xl p-4 border border-white/[0.06] grid grid-cols-2 gap-4">
+           <div class="flex flex-col gap-1 col-span-2">
+             <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Task Identifier</span>
+             <span class="text-xs font-mono text-slate-200">{{ parseStatus.parseTaskId || '-' }}</span>
+           </div>
+           <div class="flex flex-col gap-1">
+             <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Phase</span>
+             <span class="text-xs font-mono text-neon-cyan uppercase font-bold">{{ parseStatus.taskType || '-' }}</span>
+           </div>
+           <div class="flex flex-col gap-1">
+             <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Core Status</span>
+             <span class="px-2 py-0.5 rounded text-[9px] font-mono uppercase font-bold border w-fit" 
+                   :class="parseStatus.status === 'FAILED' ? 'bg-red-950/30 text-red-400 border-red-500/50' : (parseStatus.status === 'PARTIAL_SUCCESS' ? 'bg-orange-950/30 text-orange-400 border-orange-500/50' : 'bg-slate-800 text-slate-400 border-slate-600')">
+               {{ parseStatus.status || '-' }}
+             </span>
+           </div>
+           <div class="flex flex-col gap-1">
+             <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">Parse Engine Status</span>
+             <span class="px-2 py-0.5 rounded text-[9px] font-mono uppercase font-bold border w-fit" 
+                   :class="parseStatus.parseStatus === 'FAILED' ? 'bg-red-950/30 text-red-400 border-red-500/50' : (parseStatus.parseStatus === 'PARTIAL_SUCCESS' ? 'bg-orange-950/30 text-orange-400 border-orange-500/50' : 'bg-slate-800 text-slate-400 border-slate-600')">
+               {{ parseStatus.parseStatus || '-' }}
+             </span>
+           </div>
+        </div>
+
+        <div class="cyber-panel rounded-xl p-4 border border-white/[0.06]" v-if="parseStatus.metadata">
+          <span class="text-[10px] font-mono text-slate-500 uppercase tracking-widest font-bold mb-3 block border-b border-white/[0.05] pb-2">Parse Telemetry</span>
+          <div class="grid grid-cols-2 gap-3 text-xs font-mono text-slate-300">
+            <div class="flex items-center justify-between bg-slate-900/50 px-2 py-1 rounded" v-if="parseStatus.metadata.parser">
+               <span class="text-slate-500">Engine</span><span>{{ parseStatus.metadata.parser }}</span>
+            </div>
+            <div class="flex items-center justify-between bg-slate-900/50 px-2 py-1 rounded" v-if="parseStatus.metadata.page_count != null">
+               <span class="text-slate-500">Pages</span><span>{{ parseStatus.metadata.page_count }}</span>
+            </div>
+            <div class="flex items-center justify-between bg-slate-900/50 px-2 py-1 rounded" v-if="parseStatus.metadata.block_count != null">
+               <span class="text-slate-500">Blocks</span><span class="text-neon-cyan">{{ parseStatus.metadata.block_count }}</span>
+            </div>
+            <div class="flex items-center justify-between bg-red-950/30 border border-red-500/20 px-2 py-1 rounded" v-if="parseStatus.metadata.error_count != null && parseStatus.metadata.error_count > 0">
+               <span class="text-red-500/80">Fails</span><span class="text-red-400 font-bold">{{ parseStatus.metadata.error_count }}</span>
             </div>
           </div>
-          <span v-if="!parseStatus.errorMessage && (!parseStatus.metadata?.errors || parseStatus.metadata.errors.length === 0)">-</span>
-        </el-descriptions-item>
-      </el-descriptions>
-      <el-empty v-else description="暂无状态" />
+        </div>
+
+        <div class="cyber-panel rounded-xl p-4 border border-white/[0.06]">
+          <span class="text-[10px] font-mono text-slate-500 uppercase tracking-widest font-bold mb-3 block">Progress / Completion</span>
+          <el-progress 
+            :percentage="parseStatus.progressPercent || 0" 
+            :status="parseStatus.status === 'FAILED' ? 'exception' : (parseStatus.status === 'PARTIAL_SUCCESS' ? 'warning' : 'success')" 
+            :stroke-width="8"
+            :color="parseStatus.status === 'FAILED' ? '#ef4444' : (parseStatus.status === 'PARTIAL_SUCCESS' ? '#f97316' : '#00f0ff')"
+          />
+        </div>
+
+        <div class="cyber-panel rounded-xl p-4 border border-red-500/30 bg-red-950/10" v-if="parseStatus.errorMessage || parseStatus.metadata?.errors?.length">
+          <span class="text-[10px] font-mono text-red-500 uppercase tracking-widest font-bold mb-3 block flex items-center gap-1">
+             <span class="material-symbols-outlined text-[14px]">warning</span> Anomaly Logs
+          </span>
+          <div v-if="parseStatus.errorMessage" class="text-red-400 text-[11px] font-mono mb-3 bg-red-950/40 p-2 rounded border border-red-900/50 whitespace-pre-wrap">{{ parseStatus.errorMessage }}</div>
+          <div v-if="parseStatus.metadata?.errors?.length" class="flex flex-col gap-2 max-h-40 overflow-auto scrollbar-thin">
+            <div v-for="(err, idx) in parseStatus.metadata.errors" :key="idx" class="bg-red-950/40 p-2 rounded border border-red-900/50 flex flex-col gap-1">
+              <span class="text-[10px] font-bold text-red-300 font-mono">PG: {{ err.page_no || '?' }}</span>
+              <span class="text-[10px] text-red-400/80 font-mono">{{ err.error_message || err.error_type || 'Unknown Fault' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-else class="flex flex-col items-center justify-center h-40 text-slate-500 border border-dashed border-white/[0.1] rounded-xl bg-slate-950/30">
+        <span class="font-mono text-xs uppercase tracking-wider">No telemetry available</span>
+      </div>
+      
+      <template #footer>
+        <div class="flex justify-end pt-3 border-t border-white/[0.08]">
+          <button @click="statusVisible = false" class="px-4 py-2 rounded bg-slate-800 text-white text-xs font-mono border border-slate-700 hover:bg-slate-700 transition-colors cursor-pointer outline-none uppercase tracking-wider">
+            Close
+          </button>
+        </div>
+      </template>
     </el-dialog>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { Refresh, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -293,7 +428,7 @@ async function openDetail(documentId: EntityId) {
 async function retryParse(documentId: EntityId) {
   try {
     await rebuildDocumentChunks(documentId, { parserProfile: 'default' })
-    ElMessage.success('重试指令已发送，请稍后查看')
+    ElMessage.success('Retry sequence initiated.')
     await openDetail(documentId)
   } catch (err) {
     ElMessage.error(apiErrorMessage(err))
@@ -314,14 +449,15 @@ async function openParseStatus(documentId: EntityId) {
 }
 
 async function removeDocument(documentId: EntityId) {
-  await ElMessageBox.confirm('删除后文档状态将不可用于检索。', '删除文档', {
+  await ElMessageBox.confirm('Data deletion is irreversible. This data will be purged from the vector index.', 'Purge Authorization', {
     type: 'warning',
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
+    confirmButtonText: 'Authorize Purge',
+    cancelButtonText: 'Abort',
+    customClass: 'cyber-confirm-box'
   })
   try {
     await deleteDocument(documentId)
-    ElMessage.success('文档已删除')
+    ElMessage.success('Packet purged successfully.')
     await loadDocuments()
   } catch (err) {
     ElMessage.error(apiErrorMessage(err))
@@ -329,44 +465,49 @@ async function removeDocument(documentId: EntityId) {
 }
 </script>
 
-<style scoped>
-.chunks-preview {
-  border-top: 1px solid #ebeef5;
-  padding-top: 16px;
+<style>
+/* Custom scrollbar for cyber components */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
 }
-.chunks-preview h4 {
-  margin-top: 0;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
 }
-.chunk-card {
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 12px;
-  background-color: #fafafa;
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
 }
-.chunk-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: #909399;
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 240, 255, 0.3);
 }
-.chunk-id {
-  font-weight: bold;
-  color: #409eff;
+
+/* ElDialog Cyber overrides */
+.cyber-dialog {
+  background: #020617 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 0 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,240,255,0.1) !important;
 }
-.chunk-content {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #303133;
-  white-space: pre-wrap;
-  word-break: break-all;
+.cyber-dialog .el-dialog__header {
+  padding: 1.5rem 1.5rem 0.5rem !important;
+  margin-right: 0 !important;
 }
-.text-danger {
-  color: #f56c6c;
+.cyber-dialog .el-dialog__body {
+  padding: 1rem 1.5rem !important;
+}
+.cyber-dialog .el-dialog__footer {
+  padding: 0 1.5rem 1.5rem !important;
+}
+
+/* Message box */
+.cyber-confirm-box {
+  background: #020617 !important;
+  border: 1px solid rgba(239,68,68,0.3) !important;
+}
+.cyber-confirm-box .el-message-box__title {
+  color: #fff !important;
+}
+.cyber-confirm-box .el-message-box__content {
+  color: #94a3b8 !important;
 }
 </style>

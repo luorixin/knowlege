@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     ai_service_log_level: str = "INFO"
 
     # --- Parser ----------------------------------------------------------
-    parser_enable_ocr: bool = False
+    parser_enable_ocr: bool = True
     ocr_provider: str = "mock"
     vlm_provider: str = "mock"
     vlm_model_name: str = "gpt-4o"
