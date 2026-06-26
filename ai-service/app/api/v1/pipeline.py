@@ -21,17 +21,11 @@ from app.services.embedding.mock import MockEmbeddingProvider
 from app.services.embedding.openai import OpenAICompatibleHTTPProvider
 from app.services.llm.mock import MockLlmClient
 from app.services.llm.openai import OpenAICompatibleLLMClient
-from app.services.parser.mock import MockDocumentParser
 from app.services.parser.factory import build_structured_document_parser
 from app.services.rerank.http import HttpReranker
 from app.services.rerank.mock import MockReranker
 
 router = APIRouter(tags=["ai-pipeline"])
-
-
-def _build_parser():
-    # provider selection is a TODO; mock is the MVP default.
-    return MockDocumentParser()
 
 
 def _build_structured_parser():
@@ -63,7 +57,6 @@ def _build_llm_client():
     return MockLlmClient()
 
 
-parser = _build_parser()
 chunker = _build_chunker()
 structured_parser = _build_structured_parser()
 
@@ -104,7 +97,20 @@ def parse_and_chunk(request: ParseAndChunkRequest) -> ParseAndChunkResponse:
 
 @router.post("/documents/parse", response_model=ParseResponse)
 def parse_document(request: ParseRequest) -> ParseResponse:
-    return parser.parse(request)
+    parse_response = structured_parser.parse(
+        DocumentParseRequest(
+            doc_id=request.document_id,
+            version_id="1",
+            file_type=request.file_type,
+            file_path=request.storage_uri,
+        )
+    )
+    text = "\n\n".join(page.content for page in parse_response.pages if page.content.strip())
+    return ParseResponse(
+        document_id=request.document_id,
+        status=parse_response.status,
+        text=text or parse_response.markdown or "",
+    )
 
 
 @router.post("/chunks/split", response_model=ChunkResponse)

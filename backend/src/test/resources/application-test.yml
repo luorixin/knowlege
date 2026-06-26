@@ -29,6 +29,7 @@ spring:
 knowledge:
   security:
     enabled: false
+    header-fallback-enabled: true
   storage:
     local-root: target/test-uploads
   embedding:

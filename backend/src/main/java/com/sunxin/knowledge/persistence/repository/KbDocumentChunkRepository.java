@@ -57,16 +57,12 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
                                  or (lower(allowPolicy.subjectType) = 'role' and lower(allowPolicy.subjectId) in :roleSubjects)
                               )
                               and (
-                                    allowPolicy.actions = '*'
-                                 or lower(allowPolicy.actions) like '%admin_manage%'
-                                 or lower(allowPolicy.actions) like '%admin.manage%'
-                                 or lower(allowPolicy.actions) like '%admin-manage%'
-                                 or lower(allowPolicy.actions) like '%document_read%'
-                                 or lower(allowPolicy.actions) like '%document.read%'
-                                 or lower(allowPolicy.actions) like '%document-read%'
-                                 or lower(allowPolicy.actions) like '%retrieve%'
-                                 or lower(allowPolicy.actions) like '%search%'
-                                 or lower(allowPolicy.actions) like '%read%'
+                                    lower(allowPolicy.actions) = '*'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,admin_manage,%'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,document_read,%'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,retrieve,%'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,search,%'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,read,%'
                               )
                               and (
                                     lower(allowPolicy.resourceType) in ('*', 'all')
@@ -94,16 +90,12 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
                                  or (lower(denyPolicy.subjectType) = 'role' and lower(denyPolicy.subjectId) in :roleSubjects)
                               )
                               and (
-                                    denyPolicy.actions = '*'
-                                 or lower(denyPolicy.actions) like '%admin_manage%'
-                                 or lower(denyPolicy.actions) like '%admin.manage%'
-                                 or lower(denyPolicy.actions) like '%admin-manage%'
-                                 or lower(denyPolicy.actions) like '%document_read%'
-                                 or lower(denyPolicy.actions) like '%document.read%'
-                                 or lower(denyPolicy.actions) like '%document-read%'
-                                 or lower(denyPolicy.actions) like '%retrieve%'
-                                 or lower(denyPolicy.actions) like '%search%'
-                                 or lower(denyPolicy.actions) like '%read%'
+                                    lower(denyPolicy.actions) = '*'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,admin_manage,%'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,document_read,%'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,retrieve,%'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,search,%'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,read,%'
                               )
                               and (
                                     lower(denyPolicy.resourceType) in ('*', 'all')
@@ -170,16 +162,12 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
                                  or (lower(allowPolicy.subjectType) = 'role' and lower(allowPolicy.subjectId) in :roleSubjects)
                               )
                               and (
-                                    allowPolicy.actions = '*'
-                                 or lower(allowPolicy.actions) like '%admin_manage%'
-                                 or lower(allowPolicy.actions) like '%admin.manage%'
-                                 or lower(allowPolicy.actions) like '%admin-manage%'
-                                 or lower(allowPolicy.actions) like '%document_read%'
-                                 or lower(allowPolicy.actions) like '%document.read%'
-                                 or lower(allowPolicy.actions) like '%document-read%'
-                                 or lower(allowPolicy.actions) like '%retrieve%'
-                                 or lower(allowPolicy.actions) like '%search%'
-                                 or lower(allowPolicy.actions) like '%read%'
+                                    lower(allowPolicy.actions) = '*'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,admin_manage,%'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,document_read,%'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,retrieve,%'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,search,%'
+                                 or concat(',', replace(replace(replace(replace(lower(allowPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,read,%'
                               )
                               and (
                                     lower(allowPolicy.resourceType) in ('*', 'all')
@@ -207,16 +195,12 @@ public interface KbDocumentChunkRepository extends JpaRepository<KbDocumentChunk
                                  or (lower(denyPolicy.subjectType) = 'role' and lower(denyPolicy.subjectId) in :roleSubjects)
                               )
                               and (
-                                    denyPolicy.actions = '*'
-                                 or lower(denyPolicy.actions) like '%admin_manage%'
-                                 or lower(denyPolicy.actions) like '%admin.manage%'
-                                 or lower(denyPolicy.actions) like '%admin-manage%'
-                                 or lower(denyPolicy.actions) like '%document_read%'
-                                 or lower(denyPolicy.actions) like '%document.read%'
-                                 or lower(denyPolicy.actions) like '%document-read%'
-                                 or lower(denyPolicy.actions) like '%retrieve%'
-                                 or lower(denyPolicy.actions) like '%search%'
-                                 or lower(denyPolicy.actions) like '%read%'
+                                    lower(denyPolicy.actions) = '*'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,admin_manage,%'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,document_read,%'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,retrieve,%'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,search,%'
+                                 or concat(',', replace(replace(replace(replace(lower(denyPolicy.actions), '.', '_'), '-', '_'), '，', ','), ' ', ','), ',') like '%,read,%'
                               )
                               and (
                                     lower(denyPolicy.resourceType) in ('*', 'all')

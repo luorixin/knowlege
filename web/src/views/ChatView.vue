@@ -386,16 +386,9 @@
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
-import { computed, onMounted, onUnmounted, reactive, ref, nextTick, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, reactive, ref, nextTick, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-
-import VueOfficeDocx from '@vue-office/docx'
-import '@vue-office/docx/lib/index.css'
-import VueOfficeExcel from '@vue-office/excel'
-import '@vue-office/excel/lib/index.css'
-import VueOfficePdf from '@vue-office/pdf'
-import VueOfficePptx from '@vue-office/pptx'
 
 import type { EntityId, SearchFilters } from '@/api/types'
 import { useChatStore } from '@/stores/chat'
@@ -405,6 +398,17 @@ import { useUserStore } from '@/stores/user'
 defineOptions({
   name: 'ChatView',
 })
+
+const VueOfficeDocx = defineAsyncComponent(async () => {
+  await import('@vue-office/docx/lib/index.css')
+  return (await import('@vue-office/docx')).default
+})
+const VueOfficeExcel = defineAsyncComponent(async () => {
+  await import('@vue-office/excel/lib/index.css')
+  return (await import('@vue-office/excel')).default
+})
+const VueOfficePdf = defineAsyncComponent(() => import('@vue-office/pdf'))
+const VueOfficePptx = defineAsyncComponent(() => import('@vue-office/pptx'))
 
 const noEvidenceText = '未在当前知识库中找到可靠依据'
 const userStore = useUserStore()

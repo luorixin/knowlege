@@ -50,9 +50,11 @@ public class AuthService {
                 .issuer("knowledge-platform")
                 .issuedAt(now)
                 .expiresAt(expiresAt)
-                .subject(user.getUsername())
+                .subject(String.valueOf(user.getId()))
                 .claim("userId", user.getId())
+                .claim("user_id", user.getId())
                 .claim("tenantId", user.getTenantId())
+                .claim("tenant_id", user.getTenantId())
                 .claim("roles", roles)
                 .build();
 

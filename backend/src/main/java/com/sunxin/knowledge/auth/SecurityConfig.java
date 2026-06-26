@@ -15,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -26,6 +27,9 @@ public class SecurityConfig {
 
     @Value("${knowledge.jwt.secret}")
     private String jwtSecret;
+
+    @Value("${knowledge.security.cors.allowed-origin-patterns:http://localhost:5173,http://127.0.0.1:5173}")
+    private String allowedOriginPatterns;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -49,14 +53,25 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
-        configuration.setAllowedMethods(List.of("*"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        CorsConfiguration configuration = buildCorsConfiguration(allowedOriginPatterns);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    static CorsConfiguration buildCorsConfiguration(String allowedOriginPatterns) {
+        CorsConfiguration configuration = new CorsConfiguration();
+        List<String> origins = Arrays.stream((allowedOriginPatterns == null ? "" : allowedOriginPatterns).split(","))
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .toList();
+        configuration.setAllowedOriginPatterns(origins.isEmpty()
+                ? List.of("http://localhost:5173", "http://127.0.0.1:5173")
+                : origins);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowCredentials(true);
+        return configuration;
     }
 
     @Bean

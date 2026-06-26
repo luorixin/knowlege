@@ -83,6 +83,28 @@ def test_pipeline_parse_and_chunk(tmp_path: Path) -> None:
     assert first_chunk["metadata"]["strategy"] == "default"
 
 
+def test_legacy_documents_parse_uses_structured_parser(tmp_path: Path) -> None:
+    file_path = tmp_path / "legacy.txt"
+    file_path.write_text("真实 legacy parse 内容", encoding="utf-8")
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/v1/documents/parse",
+        json={
+            "document_id": "legacy-doc-1",
+            "storage_uri": str(file_path),
+            "file_type": "txt",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["document_id"] == "legacy-doc-1"
+    assert payload["status"] == "SUCCESS"
+    assert "真实 legacy parse 内容" in payload["text"]
+    assert "Mock parsed text" not in payload["text"]
+
+
 def test_embedding_endpoint_returns_unified_mock_dimension() -> None:
     client = TestClient(create_app())
 

@@ -21,6 +21,8 @@ spring:
 knowledge:
   retrieval:
     branch-timeout: ${RETRIEVAL_BRANCH_TIMEOUT:3s}
+  security:
+    header-fallback-enabled: ${KNOWLEDGE_SECURITY_HEADER_FALLBACK_ENABLED:true}
   storage:
     type: ${KNOWLEDGE_STORAGE_TYPE:local}
     local-root: ${KNOWLEDGE_STORAGE_LOCAL_ROOT:data/uploads}

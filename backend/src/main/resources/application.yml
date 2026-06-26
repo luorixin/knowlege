@@ -76,6 +76,9 @@ knowledge:
     branch-timeout: ${RETRIEVAL_BRANCH_TIMEOUT:3s}
   security:
     enabled: ${KNOWLEDGE_SECURITY_ENABLED:true}
+    header-fallback-enabled: ${KNOWLEDGE_SECURITY_HEADER_FALLBACK_ENABLED:false}
+    cors:
+      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://127.0.0.1:5173}
   jwt:
     secret: ${JWT_SECRET:KnowledgePlatformMVPSecretKey1234567890}
   storage:

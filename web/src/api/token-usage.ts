@@ -1,5 +1,5 @@
 import { http, unwrapResponse } from './http'
-import type { PageResponse } from './types'
+import type { PageResult } from './types'
 
 export interface TokenUsageItem {
   id: number
@@ -21,7 +21,7 @@ export interface TokenUsageFilters {
   created_to?: string
 }
 
-export async function listTokenUsage(page: number, size: number, filters: TokenUsageFilters = {}): Promise<PageResponse<TokenUsageItem>> {
+export async function listTokenUsage(page: number, size: number, filters: TokenUsageFilters = {}): Promise<PageResult<TokenUsageItem>> {
   const params: Record<string, any> = { page, size, ...filters }
   // remove empty strings
   Object.keys(params).forEach(key => {

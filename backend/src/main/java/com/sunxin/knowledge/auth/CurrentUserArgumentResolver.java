@@ -12,9 +12,15 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolver {
 
     private final CurrentUserResolver currentUserResolver;
+    private final boolean headerFallbackEnabled;
 
     public CurrentUserArgumentResolver(CurrentUserResolver currentUserResolver) {
+        this(currentUserResolver, false);
+    }
+
+    public CurrentUserArgumentResolver(CurrentUserResolver currentUserResolver, boolean headerFallbackEnabled) {
         this.currentUserResolver = currentUserResolver;
+        this.headerFallbackEnabled = headerFallbackEnabled;
     }
 
     @Override
@@ -30,23 +36,11 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
-            try {
-                if (jwt.getSubject() != null) {
-                    userId = Long.valueOf(jwt.getSubject());
-                }
-            } catch (NumberFormatException ignored) {}
-            
-            Object tenantIdClaim = jwt.getClaim("tenant_id");
-            if (tenantIdClaim instanceof Number n) {
-                tenantId = n.longValue();
-            } else if (tenantIdClaim instanceof String s) {
-                try {
-                    tenantId = Long.valueOf(s);
-                } catch (NumberFormatException ignored) {}
-            }
+            userId = firstLong(jwt.getClaim("userId"), jwt.getClaim("user_id"), jwt.getSubject());
+            tenantId = firstLong(jwt.getClaim("tenantId"), jwt.getClaim("tenant_id"));
         }
 
-        if (userId == null) {
+        if (headerFallbackEnabled && userId == null) {
             String userIdHeader = webRequest.getHeader("X-User-Id");
             if (userIdHeader != null) {
                 try {
@@ -55,7 +49,7 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
             }
         }
 
-        if (tenantId == null) {
+        if (headerFallbackEnabled && tenantId == null) {
             String tenantIdHeader = webRequest.getHeader("X-Tenant-Id");
             if (tenantIdHeader != null) {
                 try {
@@ -65,5 +59,29 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
         }
 
         return currentUserResolver.resolve(userId, tenantId);
+    }
+
+    private static Long firstLong(Object... values) {
+        for (Object value : values) {
+            Long parsed = parseLong(value);
+            if (parsed != null) {
+                return parsed;
+            }
+        }
+        return null;
+    }
+
+    private static Long parseLong(Object value) {
+        if (value instanceof Number n) {
+            return n.longValue();
+        }
+        if (value instanceof String s && !s.isBlank()) {
+            try {
+                return Long.valueOf(s);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 }

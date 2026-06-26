@@ -152,6 +152,33 @@ class RetrievalSearchApiTest {
                 .andExpect(jsonPath("$.data.results", hasSize(0)));
     }
 
+    @Test
+    void searchDoesNotTreatPartialActionTokenAsReadPermission() throws Exception {
+        KbSpace space = createSpace();
+        KbDocument document = createDocument(space, "金融数据治理 Proposal", "PROPOSAL", "金融", "数据治理");
+        createChunk(document, 1, "项目背景", "金融行业数据治理 proposal 类似案例。");
+        KbPermissionPolicy policy = policy(space, 42L);
+        policy.setResourceType("SPACE");
+        policy.setResourceId(space.getId());
+        policy.setEffect("ALLOW");
+        policy.setActions("SPREADSHEET");
+        permissionPolicyRepository.save(policy);
+
+        mockMvc.perform(post("/api/retrieval/search")
+                        .header("X-User-Id", "42")
+                        .header("X-Tenant-Id", space.getTenantId().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "金融行业数据治理 proposal",
+                                  "space_id": %d,
+                                  "top_k": 10
+                                }
+                                """.formatted(space.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results", hasSize(0)));
+    }
+
     private KbSpace createSpace() {
         KbSpace space = new KbSpace();
         space.setId(idGenerator.nextId());
